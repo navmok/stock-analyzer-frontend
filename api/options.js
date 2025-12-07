@@ -1,8 +1,17 @@
 // api/options.js
 // Mock options data so the UI always works
 
-export default async function handler(req, res) {
-  const { symbol = "GOOGL" } = req.query ?? {};
+module.exports = async function handler(req, res) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  const { symbol = "GOOGL" } = req.query || {};
 
   // Simple fake dataset
   const baseStrike = 300;
@@ -38,5 +47,5 @@ export default async function handler(req, res) {
     );
   }
 
-  res.status(200).json(options);
-}
+  return res.status(200).json(options);
+};
