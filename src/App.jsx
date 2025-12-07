@@ -16,7 +16,8 @@ const API_BASE =
     ? "https://stock-analyzer-frontend-cxem.vercel.app"
     : "";
 
-const SYMBOLS = [
+// === NEW: master list + default active + max ===
+const ALL_SYMBOLS = [
   "RIOT",
   "COST",
   "META",
@@ -38,9 +39,11 @@ const SYMBOLS = [
   "IOQ",
 ];
 
+const DEFAULT_ACTIVE = ALL_SYMBOLS.slice(0, 3); // default 3 stocks in view
+const MAX_ACTIVE = 5;
+
 // ---- helper to compute moving averages on 'close' ----
 function addMovingAverages(rows) {
-  // Calendar-style windows
   const ONE_M = 30; // 1 month ≈ 30 days
   const THREE_M = 90; // 3 months ≈ 90 days
   const TWELVE_M = 365; // 12 months ≈ 365 days
@@ -130,7 +133,10 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 export default function App() {
-  const [symbol, setSymbol] = useState("GOOG");
+  // === CHANGED: symbol state split into activeSymbols + current symbol ===
+  const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
+  const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
+
   const [days, setDays] = useState(365);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -143,6 +149,30 @@ export default function App() {
   const [show1M, setShow1M] = useState(true);
   const [show3M, setShow3M] = useState(true);
   const [show12M, setShow12M] = useState(true);
+
+  // === NEW: helpers for selecting / adding symbols ===
+  function handleSelectSymbol(sym) {
+    setSymbol(sym);
+    loadData(sym, days);
+    loadOptions(sym);
+  }
+
+  function handleAddSymbol(newSym) {
+    if (!newSym) return;
+
+    setActiveSymbols((prev) => {
+      if (prev.includes(newSym)) return prev;
+
+      let updated = [...prev, newSym];
+      if (updated.length > MAX_ACTIVE) {
+        // drop oldest to keep last MAX_ACTIVE symbols
+        updated = updated.slice(updated.length - MAX_ACTIVE);
+      }
+      return updated;
+    });
+
+    handleSelectSymbol(newSym);
+  }
 
   // ---- LOAD PRICE DATA ----
   async function loadData(sym = symbol, d = days) {
@@ -243,18 +273,35 @@ export default function App() {
       </header>
 
       <section className="controls">
+        {/* === NEW: active symbols displayed as chips (max 5) === */}
+        <div className="control-group">
+          <span className="control-label">Stocks in view (max 5)</span>
+          <div className="symbol-chips">
+            {activeSymbols.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`symbol-chip ${s === symbol ? "active" : ""}`}
+                onClick={() => handleSelectSymbol(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* === NEW: Add stock selector (adds, drops oldest if >5) === */}
         <div className="control">
-          <label>Symbol</label>
+          <label>Add stock</label>
           <select
-            value={symbol}
+            value=""
             onChange={(e) => {
-              const sym = e.target.value;
-              setSymbol(sym);
-              loadData(sym, days);
-              loadOptions(sym);
+              handleAddSymbol(e.target.value);
+              e.target.value = "";
             }}
           >
-            {SYMBOLS.map((s) => (
+            <option value="">Choose…</option>
+            {ALL_SYMBOLS.filter((s) => !activeSymbols.includes(s)).map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -262,6 +309,7 @@ export default function App() {
           </select>
         </div>
 
+        {/* Days + buttons (unchanged) */}
         <div className="control">
           <label>Days</label>
           <input
