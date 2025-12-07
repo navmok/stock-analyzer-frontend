@@ -56,6 +56,41 @@ body {
   color: #e5e7eb;
 }
 
+/* NEW: group wrapper + label for the stocks-in-view chips */
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* NEW: chips row for active stocks */
+.symbol-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.symbol-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background-color: #020617;
+  color: #e5e7eb;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.symbol-chip.active {
+  border-color: #38bdf8;
+  background-color: #0ea5e9;
+  color: #0f172a;
+}
+
 button {
   padding: 6px 12px;
   border-radius: 4px;
