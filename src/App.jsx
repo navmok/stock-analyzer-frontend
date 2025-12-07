@@ -140,6 +140,10 @@ export default function App() {
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState("");
 
+  const [show1M, setShow1M] = useState(true);
+  const [show3M, setShow3M] = useState(true);
+  const [show12M, setShow12M] = useState(true);
+
   // ---- LOAD PRICE DATA ----
   async function loadData(sym = symbol, d = days) {
     setLoading(true);
@@ -293,6 +297,47 @@ export default function App() {
         )}
       </section>
 
+      {/* Moving average toggles */}
+      <section className="ma-toggles">
+        <div className="ma-toggle-group">
+          <label className="ma-toggle">
+            <span>1M MA</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={show1M}
+                onChange={(e) => setShow1M(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
+
+          <label className="ma-toggle">
+            <span>3M MA</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={show3M}
+                onChange={(e) => setShow3M(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
+
+          <label className="ma-toggle">
+            <span>12M MA</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={show12M}
+                onChange={(e) => setShow12M(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
+        </div>
+      </section>
+
       <main>
         {latest && (
           <div className="latest">
@@ -336,33 +381,39 @@ export default function App() {
                   dot={false}
                   strokeWidth={2}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="ma1M"
-                  name="1M MA"
-                  stroke="#22c55e"
-                  dot={false}
-                  strokeWidth={1.5}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ma3M"
-                  name="3M MA"
-                  stroke="#facc15"
-                  dot={false}
-                  strokeWidth={1.5}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ma12M"
-                  name="12M MA"
-                  stroke="#f97316"
-                  dot={false}
-                  strokeWidth={1.5}
-                  connectNulls
-                />
+                {show1M && (
+                  <Line
+                    type="monotone"
+                    dataKey="ma1M"
+                    name="1M MA"
+                    stroke="#22c55e"
+                    dot={false}
+                    strokeWidth={1.5}
+                    connectNulls
+                  />
+                )}
+                {show3M && (
+                  <Line
+                    type="monotone"
+                    dataKey="ma3M"
+                    name="3M MA"
+                    stroke="#facc15"
+                    dot={false}
+                    strokeWidth={1.5}
+                    connectNulls
+                  />
+                )}
+                {show12M && (
+                  <Line
+                    type="monotone"
+                    dataKey="ma12M"
+                    name="12M MA"
+                    stroke="#f97316"
+                    dot={false}
+                    strokeWidth={1.5}
+                    connectNulls
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
