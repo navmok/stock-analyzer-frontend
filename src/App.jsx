@@ -15,7 +15,7 @@ const API_BASE =
     ? "https://stock-analyzer-frontend-cxem.vercel.app"
     : "";
 
-const SYMBOLS = ["AAPL", "MSFT", "GOOGL", "TSLA", "AMZN"];
+const SYMBOLS = ["RIOT", "COST", "META", "WMT", "TGT", "AAPL", "GOOG", "NFLX", "CMG", "LULU", "MRVL", "ELF", "FISV", "UBER", "LYFT", "BBAI", "SOFI", "HOOD", "IOQ"];
 
 // Custom tooltip for better chart info
 const CustomTooltip = ({ active, payload }) => {
