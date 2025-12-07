@@ -1,25 +1,35 @@
 // api/options.js
-// Yahoo Finance options via query2 endpoint
+// Yahoo Finance options
 
 export default async function handler(req, res) {
-  const { symbol = "GOOGL" } = req.query || {};
+  const { symbol = "GOOGL" } = req.query ?? {};
 
   try {
     const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
       symbol
     )}`;
+
     const r = await fetch(url);
     if (!r.ok) {
-      throw new Error(`Yahoo HTTP ${r.status}`);
-    }
-
-    const json = await r.json();
-    const chain = json?.optionChain?.result?.[0];
-    if (!chain || !chain.options?.[0]) {
+      console.error("Yahoo status", r.status);
+      // return empty array instead of 500
       return res.status(200).json([]);
     }
 
-    const opt = chain.options[0]; // nearest expiry
+    let json;
+    try {
+      json = await r.json();
+    } catch (e) {
+      console.error("Yahoo JSON parse error", e);
+      return res.status(200).json([]);
+    }
+
+    const chain = json?.optionChain?.result?.[0];
+    const opt = chain?.options?.[0];
+    if (!opt) {
+      return res.status(200).json([]);
+    }
+
     const calls = opt.calls || [];
     const puts = opt.puts || [];
 
@@ -32,7 +42,7 @@ export default async function handler(req, res) {
       ask: o.ask,
       volume: o.volume,
       openInterest: o.openInterest,
-      expiration: new Date(o.expiration * 1000).toISOString(),
+      expiration: o.expiration ? new Date(o.expiration * 1000).toISOString() : null,
       inTheMoney: o.inTheMoney,
     });
 
@@ -43,7 +53,8 @@ export default async function handler(req, res) {
 
     res.status(200).json(options);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Failed to load options" });
+    console.error("Options handler error", e);
+    // fail soft: empty list, not 500
+    res.status(200).json([]);
   }
 }
