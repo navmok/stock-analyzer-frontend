@@ -19,19 +19,31 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div style={{ 
-        background: 'white', 
-        padding: '10px', 
-        border: '1px solid #ccc',
-        borderRadius: '4px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }}>
-        <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{data.timeLabel}</p>
-        <p style={{ margin: '2px 0' }}>Open: <strong>${data.open.toFixed(2)}</strong></p>
-        <p style={{ margin: '2px 0' }}>High: <strong>${data.high.toFixed(2)}</strong></p>
-        <p style={{ margin: '2px 0' }}>Low: <strong>${data.low.toFixed(2)}</strong></p>
-        <p style={{ margin: '2px 0' }}>Close: <strong>${data.close.toFixed(2)}</strong></p>
-        <p style={{ margin: '2px 0' }}>Volume: <strong>{data.volume.toLocaleString()}</strong></p>
+      <div
+        style={{
+          background: "white",
+          padding: "10px",
+          border: "1px solid #ccc",
+          borderRadius: "4px",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        }}
+      >
+        <p style={{ margin: "2px 0", fontWeight: "bold" }}>{data.timeLabel}</p>
+        <p style={{ margin: "2px 0" }}>
+          Open: <strong>${data.open.toFixed(2)}</strong>
+        </p>
+        <p style={{ margin: "2px 0" }}>
+          High: <strong>${data.high.toFixed(2)}</strong>
+        </p>
+        <p style={{ margin: "2px 0" }}>
+          Low: <strong>${data.low.toFixed(2)}</strong>
+        </p>
+        <p style={{ margin: "2px 0" }}>
+          Close: <strong>${data.close.toFixed(2)}</strong>
+        </p>
+        <p style={{ margin: "2px 0" }}>
+          Volume: <strong>{data.volume.toLocaleString()}</strong>
+        </p>
       </div>
     );
   }
@@ -44,6 +56,10 @@ function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [options, setOptions] = useState([]);               // NEW
+  const [optionsLoading, setOptionsLoading] = useState(false); // NEW
+  const [optionsError, setOptionsError] = useState("");        // NEW
 
   async function loadData(sym = symbol, d = days) {
     setLoading(true);
@@ -68,7 +84,7 @@ function App() {
       // enrich with formatted time label for the chart
       const enriched = json.map((row) => {
         const date = new Date(row.ts_utc);
-        
+
         // For intraday (days <= 5), show date + time
         // For daily data (days > 5), show just date
         let timeLabel;
@@ -86,7 +102,7 @@ function App() {
             year: "2-digit",
           });
         }
-        
+
         return {
           ...row,
           timeLabel,
@@ -99,6 +115,25 @@ function App() {
       setError("Failed to load data: " + e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadOptions(sym = symbol) {                 // NEW
+    setOptionsLoading(true);
+    setOptionsError("");
+    try {
+      const url = `${API_BASE}/api/options?symbol=${encodeURIComponent(sym)}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      setOptions(json || []);
+    } catch (e) {
+      console.error(e);
+      setOptionsError("Failed to load options: " + e.message);
+    } finally {
+      setOptionsLoading(false);
     }
   }
 
@@ -153,9 +188,18 @@ function App() {
           {loading ? "Loading..." : "Refresh"}
         </button>
 
+        <button onClick={() => loadOptions()} disabled={optionsLoading}> {/* NEW */}
+          {optionsLoading ? "Loading options..." : "Load Options"}
+        </button>
+
         {error && (
           <div className="status">
             <span className="error">{error}</span>
+          </div>
+        )}
+        {optionsError && (                                         // NEW
+          <div className="status">
+            <span className="error">{optionsError}</span>
           </div>
         )}
       </section>
@@ -209,7 +253,7 @@ function App() {
         {/* ==== TABLE ==== */}
         <div className="table-wrapper">
           <h2>Data ({data.length} rows)</h2>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
             <table>
               <thead>
                 <tr>
@@ -244,6 +288,52 @@ function App() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* ==== OPTIONS TABLE ==== */}                            {/* NEW */}
+        <div className="table-wrapper">
+          <h2>Options ({options.length} rows)</h2>
+          {optionsLoading && <p>Loading options…</p>}
+          {!optionsLoading && !options.length && <p>No options loaded.</p>}
+
+          {options.length > 0 && (
+            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Contract</th>
+                    <th>Type</th>
+                    <th>Strike</th>
+                    <th>Expiry</th>
+                    <th>Last</th>
+                    <th>Bid</th>
+                    <th>Ask</th>
+                    <th>Volume</th>
+                    <th>Open Int</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {options.map((o, idx) => (
+                    <tr key={idx}>
+                      <td>{o.contractSymbol}</td>
+                      <td>{o.type}</td>
+                      <td>{o.strike}</td>
+                      <td>
+                        {o.expiration
+                          ? new Date(o.expiration).toLocaleDateString()
+                          : ""}
+                      </td>
+                      <td>{o.lastPrice}</td>
+                      <td>{o.bid}</td>
+                      <td>{o.ask}</td>
+                      <td>{o.volume}</td>
+                      <td>{o.openInterest}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </main>
     </div>
