@@ -3,6 +3,8 @@
 export default async function handler(req, res) {
   const symbol = req.query?.symbol || "GOOG";
   const daysParam = req.query?.days;
+
+  // NO CLAMP: just enforce minimum 1
   const d = Math.max(1, parseInt(daysParam, 10) || 1);
 
   // Decide interval + range based on requested days
@@ -10,18 +12,17 @@ export default async function handler(req, res) {
   let range;
 
   if (d <= 7) {
-    // 1-minute data, up to 7 days
+    // 1-minute data, Yahoo supports up to 7 days
     interval = "1m";
     range = "7d";
   } else if (d <= 60) {
-    // 5-minute data, up to 60 days
+    // 5-minute data, Yahoo supports up to 60 days
     interval = "5m";
     range = "60d";
   } else {
     // Beyond 60 days -> daily candles
     interval = "1d";
-    // you can fine-tune this; using max gives long history
-    range = "max";
+    range = "max"; // we’ll filter to last d days manually
   }
 
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
@@ -87,16 +88,20 @@ export default async function handler(req, res) {
       })
       .filter(Boolean);
 
-    // Optionally, if you want to *roughly* cap number of days returned
-    // you can slice from the end using d:
-    // (Yahoo may give slightly more than you asked for)
-    // const msPerDay = 24 * 60 * 60 * 1000;
-    // const cutoff = Date.now() - d * msPerDay;
-    // const filtered = rows.filter(
-    //   (row) => new Date(row.ts_utc).getTime() >= cutoff
-    // );
+    // --- Trim to last `d` days based on timestamps ---
+    let filtered = rows;
+    if (rows.length > 0) {
+      const msPerDay = 24 * 60 * 60 * 1000;
+      // data from Yahoo is ascending; last row is most recent
+      const lastTs = new Date(rows[rows.length - 1].ts_utc).getTime();
+      const cutoff = lastTs - d * msPerDay;
 
-    return res.status(200).json(rows);
+      filtered = rows.filter(
+        (row) => new Date(row.ts_utc).getTime() >= cutoff
+      );
+    }
+
+    return res.status(200).json(filtered);
   } catch (err) {
     console.error("Error calling Yahoo Finance chart API:", err);
     return res.status(500).json({ error: "Failed to load prices" });
