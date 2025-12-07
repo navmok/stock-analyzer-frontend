@@ -1,98 +1,104 @@
-// api/prices.js
-// Stock OHLCV data from Yahoo Finance chart API
+// api/prices.js or pages/api/prices.js
 
 export default async function handler(req, res) {
-  const { symbol = "GOOGL", days = "1" } = req.query ?? {};
+  const symbol = req.query?.symbol || "GOOG";
+  const daysParam = req.query?.days;
+  const d = Math.max(1, parseInt(daysParam, 10) || 1);
 
-  const d = Number(days) || 1;
+  // Decide interval + range based on requested days
+  let interval;
+  let range;
 
-  // Simple mapping from "days" -> Yahoo range + interval
-  let range = `${d}d`;
-  let interval = "1d";
-
-  if (d <= 5) {
-    range = `${d}d`;
-    interval = "5m";      // intraday-ish
+  if (d <= 7) {
+    // 1-minute data, up to 7 days
+    interval = "1m";
+    range = "7d";
   } else if (d <= 60) {
-    range = `${d}d`;
-    interval = "1d";
-  } else if (d <= 365) {
-    range = "1y";
-    interval = "1d";
+    // 5-minute data, up to 60 days
+    interval = "5m";
+    range = "60d";
   } else {
-    range = "2y";
+    // Beyond 60 days -> daily candles
     interval = "1d";
+    // you can fine-tune this; using max gives long history
+    range = "max";
   }
 
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+    symbol
+  )}?interval=${interval}&range=${range}`;
+
+  console.log("Fetching Yahoo prices:", { url, symbol, d, interval, range });
+
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-      symbol
-    )}?range=${range}&interval=${interval}`;
+    const yfRes = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+      },
+    });
 
-    const r = await fetch(url);
-    if (!r.ok) {
-      console.error("Yahoo status", r.status);
-      return res.status(200).json([]); // fail soft
+    if (!yfRes.ok) {
+      console.error("Yahoo HTTP error:", yfRes.status, yfRes.statusText);
+      return res
+        .status(500)
+        .json({ error: `Yahoo Finance HTTP ${yfRes.status}` });
     }
 
-    let json;
-    try {
-      json = await r.json();
-    } catch (e) {
-      console.error("Yahoo JSON error", e);
-      return res.status(200).json([]);
-    }
+    const json = await yfRes.json();
 
-    const chart = json?.chart;
-    const result = chart?.result?.[0];
-    if (!result) {
-      return res.status(200).json([]);
-    }
-
-    const timestamps = result.timestamp || [];
-    const quote = result.indicators?.quote?.[0] || {};
-
+    const result = json?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const quote = result?.indicators?.quote?.[0] || {};
     const opens = quote.open || [];
     const highs = quote.high || [];
     const lows = quote.low || [];
     const closes = quote.close || [];
     const volumes = quote.volume || [];
 
-    const out = [];
-    for (let i = 0; i < timestamps.length; i++) {
-      const ts = timestamps[i];
-      const o = opens[i];
-      const h = highs[i];
-      const l = lows[i];
-      const c = closes[i];
-      const v = volumes[i];
+    const rows = timestamps
+      .map((t, idx) => {
+        const open = opens[idx];
+        const high = highs[idx];
+        const low = lows[idx];
+        const close = closes[idx];
+        const volume = volumes[idx];
 
-      // Skip incomplete rows
-      if (
-        ts == null ||
-        o == null ||
-        h == null ||
-        l == null ||
-        c == null ||
-        v == null
-      ) {
-        continue;
-      }
+        // Filter out any null/undefined rows
+        if (
+          open == null ||
+          high == null ||
+          low == null ||
+          close == null ||
+          volume == null
+        ) {
+          return null;
+        }
 
-      out.push({
-        ts_utc: new Date(ts * 1000).toISOString(),
-        symbol,
-        open: o,
-        high: h,
-        low: l,
-        close: c,
-        volume: v,
-      });
-    }
+        return {
+          ts_utc: new Date(t * 1000).toISOString(),
+          symbol,
+          open,
+          high,
+          low,
+          close,
+          volume,
+        };
+      })
+      .filter(Boolean);
 
-    return res.status(200).json(out);
-  } catch (e) {
-    console.error("prices handler error", e);
-    return res.status(200).json([]); // never 500
+    // Optionally, if you want to *roughly* cap number of days returned
+    // you can slice from the end using d:
+    // (Yahoo may give slightly more than you asked for)
+    // const msPerDay = 24 * 60 * 60 * 1000;
+    // const cutoff = Date.now() - d * msPerDay;
+    // const filtered = rows.filter(
+    //   (row) => new Date(row.ts_utc).getTime() >= cutoff
+    // );
+
+    return res.status(200).json(rows);
+  } catch (err) {
+    console.error("Error calling Yahoo Finance chart API:", err);
+    return res.status(500).json({ error: "Failed to load prices" });
   }
 }
