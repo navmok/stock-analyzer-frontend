@@ -1,0 +1,111 @@
+.app {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 1.5rem 2rem;
+  background: #0f172a;
+  min-height: 100vh;
+  color: #e5e7eb;
+}
+
+.app-header {
+  margin-bottom: 1rem;
+}
+
+.app-header h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+}
+
+.control select,
+.control input {
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid #4b5563;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.3rem;
+  border: 1px solid #4b5563;
+  background: #1d4ed8;
+  color: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.status .error {
+  color: #f97373;
+}
+
+.latest {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: #020617;
+  border-radius: 0.5rem;
+}
+
+.table-wrapper {
+  background: #020617;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+thead {
+  background: #111827;
+}
+
+th,
+td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #1f2933;
+  text-align: right;
+}
+
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+
+tbody tr:hover {
+  background: #111827;
+}
+
+.chart-wrapper {
+  background: #020617;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
