@@ -118,17 +118,48 @@ function App() {
     }
   }
 
-  async function loadOptions(sym = symbol) {                 // NEW
+  async function loadOptions(sym = symbol) {
     setOptionsLoading(true);
     setOptionsError("");
     try {
-      const url = `${API_BASE}/api/options?symbol=${encodeURIComponent(sym)}`;
+      const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
+        sym
+      )}`;
       const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const json = await res.json();
-      setOptions(json || []);
+
+      const chain = json?.optionChain?.result?.[0];
+      const opt = chain?.options?.[0];
+      if (!opt) {
+        setOptions([]);
+        return;
+      }
+
+      const calls = opt.calls || [];
+      const puts = opt.puts || [];
+
+      const mapOption = (o, type) => ({
+        contractSymbol: o.contractSymbol,
+        type, // "C" or "P"
+        strike: o.strike,
+        lastPrice: o.lastPrice,
+        bid: o.bid,
+        ask: o.ask,
+        volume: o.volume,
+        openInterest: o.openInterest,
+        expiration: o.expiration
+          ? new Date(o.expiration * 1000).toISOString()
+          : null,
+        inTheMoney: o.inTheMoney,
+      });
+
+      setOptions([
+        ...calls.map((o) => mapOption(o, "C")),
+        ...puts.map((o) => mapOption(o, "P")),
+      ]);
     } catch (e) {
       console.error(e);
       setOptionsError("Failed to load options: " + e.message);
