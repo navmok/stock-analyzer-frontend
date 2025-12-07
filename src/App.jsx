@@ -1,168 +1,64 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
-const API_BASE = ""; // same-origin (Vercel serverless functions)
+const API_BASE =
+  process.env.NODE_ENV === "production"
+    ? "https://stock-analyzer-frontend-cxem.vercel.app"
+    : "";
 
 const SYMBOLS = ["AAPL", "MSFT", "GOOGL", "TSLA", "AMZN"];
 
-// Custom tooltip for better chart info
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div
-        style={{
-          background: "white",
-          padding: "10px",
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        }}
-      >
-        <p style={{ margin: "2px 0", fontWeight: "bold" }}>{data.timeLabel}</p>
-        <p style={{ margin: "2px 0" }}>
-          Open: <strong>${data.open.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          High: <strong>${data.high.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Low: <strong>${data.low.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Close: <strong>${data.close.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Volume: <strong>{data.volume.toLocaleString()}</strong>
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
 function App() {
   const [symbol, setSymbol] = useState("GOOGL");
-  const [days, setDays] = useState(1);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [options, setOptions] = useState([]);               // NEW
-  const [optionsLoading, setOptionsLoading] = useState(false); // NEW
-  const [optionsError, setOptionsError] = useState("");        // NEW
+  const [options, setOptions] = useState([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState("");
 
-  async function loadData(sym = symbol, d = days) {
+  // ---- LOAD PRICE DATA ----
+  async function loadData(sym = symbol) {
     setLoading(true);
     setError("");
+
     try {
-      const url = `${API_BASE}/api/prices?symbol=${encodeURIComponent(
-        sym
-      )}&days=${d}`;
+      const url = `${API_BASE}/api/prices?symbol=${encodeURIComponent(sym)}&days=1`;
+      console.log("Fetching prices:", url);
+
       const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const json = await res.json();
-
-      // Check if data is empty
-      if (!json || json.length === 0) {
-        setError("No data available for this symbol/period");
-        setData([]);
-        return;
-      }
-
-      // enrich with formatted time label for the chart
-      const enriched = json.map((row) => {
-        const date = new Date(row.ts_utc);
-
-        // For intraday (days <= 5), show date + time
-        // For daily data (days > 5), show just date
-        let timeLabel;
-        if (d <= 5) {
-          timeLabel = date.toLocaleString("en-US", {
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        } else {
-          timeLabel = date.toLocaleDateString("en-US", {
-            month: "numeric",
-            day: "numeric",
-            year: "2-digit",
-          });
-        }
-
-        return {
-          ...row,
-          timeLabel,
-        };
-      });
-
-      setData(enriched);
-    } catch (e) {
-      console.error(e);
-      setError("Failed to load data: " + e.message);
+      setData(json || []);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load prices: " + err.message);
     } finally {
       setLoading(false);
     }
   }
 
+  // ---- LOAD OPTIONS DATA (OUR NEW ROUTE) ----
   async function loadOptions(sym = symbol) {
     setOptionsLoading(true);
     setOptionsError("");
+
     try {
-      const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
-        sym
-      )}`;
+      const url = `${API_BASE}/api/options?symbol=${encodeURIComponent(sym)}`;
+      console.log("Fetching options:", url); // DEBUG
+
       const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const json = await res.json();
+      console.log("Options response:", json); // DEBUG
 
-      const chain = json?.optionChain?.result?.[0];
-      const opt = chain?.options?.[0];
-      if (!opt) {
-        setOptions([]);
-        return;
-      }
-
-      const calls = opt.calls || [];
-      const puts = opt.puts || [];
-
-      const mapOption = (o, type) => ({
-        contractSymbol: o.contractSymbol,
-        type, // "C" or "P"
-        strike: o.strike,
-        lastPrice: o.lastPrice,
-        bid: o.bid,
-        ask: o.ask,
-        volume: o.volume,
-        openInterest: o.openInterest,
-        expiration: o.expiration
-          ? new Date(o.expiration * 1000).toISOString()
-          : null,
-        inTheMoney: o.inTheMoney,
-      });
-
-      setOptions([
-        ...calls.map((o) => mapOption(o, "C")),
-        ...puts.map((o) => mapOption(o, "P")),
-      ]);
-    } catch (e) {
-      console.error(e);
-      setOptionsError("Failed to load options: " + e.message);
+      setOptions(json || []);
+    } catch (err) {
+      console.error("Options fetch error:", err);
+      setOptionsError("Failed to load options: " + err.message);
     } finally {
       setOptionsLoading(false);
     }
@@ -170,203 +66,73 @@ function App() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const latest = data.length ? data[data.length - 1] : null;
-
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>📈 Stock Dashboard (MVP)</h1>
-      </header>
+    <div style={{ padding: "20px", color: "white" }}>
+      <h1>Stock Dashboard (MVP)</h1>
 
-      <section className="controls">
-        <div className="control">
-          <label>Symbol</label>
-          <select
-            value={symbol}
-            onChange={(e) => {
-              const sym = e.target.value;
-              setSymbol(sym);
-              loadData(sym, days);
-            }}
-          >
-            {SYMBOLS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="control">
-          <label>Days</label>
-          <input
-            type="number"
-            min="1"
-            max="730"
-            value={days}
-            onChange={(e) => {
-              const d = Number(e.target.value || 1);
-              setDays(d);
-              loadData(symbol, d);
-            }}
-          />
-        </div>
+      <div style={{ marginBottom: "20px" }}>
+        <label>Symbol: </label>
+        <select
+          value={symbol}
+          onChange={(e) => {
+            setSymbol(e.target.value);
+            loadData(e.target.value);
+          }}
+        >
+          {SYMBOLS.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
 
         <button onClick={() => loadData()} disabled={loading}>
           {loading ? "Loading..." : "Refresh"}
         </button>
 
-        <button onClick={() => loadOptions()} disabled={optionsLoading}> {/* NEW */}
+        <button onClick={() => loadOptions()} disabled={optionsLoading}>
           {optionsLoading ? "Loading options..." : "Load Options"}
         </button>
 
-        {error && (
-          <div className="status">
-            <span className="error">{error}</span>
-          </div>
-        )}
-        {optionsError && (                                         // NEW
-          <div className="status">
-            <span className="error">{optionsError}</span>
-          </div>
-        )}
-      </section>
+        {error && <p style={{ color: "red" }}>{error}</p>}
+        {optionsError && <p style={{ color: "red" }}>{optionsError}</p>}
+      </div>
 
-      <main>
-        {latest && (
-          <div className="latest">
-            <h2>Latest</h2>
-            <p>
-              <strong>{latest.symbol}</strong> –{" "}
-              {new Date(latest.ts_utc).toLocaleString()} – Close:{" "}
-              <strong>${latest.close.toFixed(2)}</strong>
-            </p>
-          </div>
-        )}
-
-        {/* ==== PRICE CHART ==== */}
-        <div className="chart-wrapper">
-          <h2>Price (close)</h2>
-          <div style={{ width: "100%", height: 300 }}>
-            <ResponsiveContainer>
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="timeLabel"
-                  minTickGap={30}
-                  tick={{ fontSize: 10 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis
-                  tick={{ fontSize: 10 }}
-                  width={70}
-                  domain={["auto", "auto"]}
-                  tickFormatter={(value) => `$${value.toFixed(0)}`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="close"
-                  stroke="#60a5fa"
-                  dot={false}
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* ==== TABLE ==== */}
-        <div className="table-wrapper">
-          <h2>Data ({data.length} rows)</h2>
-          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Time (UTC)</th>
-                  <th>Symbol</th>
-                  <th>Open</th>
-                  <th>High</th>
-                  <th>Low</th>
-                  <th>Close</th>
-                  <th>Volume</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{new Date(row.ts_utc).toLocaleString()}</td>
-                    <td>{row.symbol}</td>
-                    <td>${row.open.toFixed(2)}</td>
-                    <td>${row.high.toFixed(2)}</td>
-                    <td>${row.low.toFixed(2)}</td>
-                    <td>${row.close.toFixed(2)}</td>
-                    <td>{row.volume.toLocaleString()}</td>
-                  </tr>
-                ))}
-                {!data.length && !loading && (
-                  <tr>
-                    <td colSpan="7" style={{ textAlign: "center" }}>
-                      No data
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ==== OPTIONS TABLE ==== */}                            {/* NEW */}
-        <div className="table-wrapper">
-          <h2>Options ({options.length} rows)</h2>
-          {optionsLoading && <p>Loading options…</p>}
-          {!optionsLoading && !options.length && <p>No options loaded.</p>}
-
-          {options.length > 0 && (
-            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Contract</th>
-                    <th>Type</th>
-                    <th>Strike</th>
-                    <th>Expiry</th>
-                    <th>Last</th>
-                    <th>Bid</th>
-                    <th>Ask</th>
-                    <th>Volume</th>
-                    <th>Open Int</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {options.map((o, idx) => (
-                    <tr key={idx}>
-                      <td>{o.contractSymbol}</td>
-                      <td>{o.type}</td>
-                      <td>{o.strike}</td>
-                      <td>
-                        {o.expiration
-                          ? new Date(o.expiration).toLocaleDateString()
-                          : ""}
-                      </td>
-                      <td>{o.lastPrice}</td>
-                      <td>{o.bid}</td>
-                      <td>{o.ask}</td>
-                      <td>{o.volume}</td>
-                      <td>{o.openInterest}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </main>
+      <h2>Options ({options.length} rows)</h2>
+      {options.length > 0 ? (
+        <table style={{ width: "100%", color: "white" }}>
+          <thead>
+            <tr>
+              <th>Contract</th>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Last</th>
+              <th>Bid</th>
+              <th>Ask</th>
+              <th>Volume</th>
+              <th>Open Int</th>
+              <th>Expiry</th>
+            </tr>
+          </thead>
+          <tbody>
+            {options.map((o, i) => (
+              <tr key={i}>
+                <td>{o.contractSymbol}</td>
+                <td>{o.type}</td>
+                <td>{o.strike}</td>
+                <td>{o.lastPrice}</td>
+                <td>{o.bid}</td>
+                <td>{o.ask}</td>
+                <td>{o.volume}</td>
+                <td>{o.openInterest}</td>
+                <td>{o.expiration}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p>No options loaded.</p>
+      )}
     </div>
   );
 }
