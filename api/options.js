@@ -1,5 +1,5 @@
 // api/options.js
-// Yahoo Finance options
+// Yahoo Finance options via query2 API
 
 export default async function handler(req, res) {
   const { symbol = "GOOGL" } = req.query ?? {};
@@ -9,18 +9,25 @@ export default async function handler(req, res) {
       symbol
     )}`;
 
-    const r = await fetch(url);
+    const r = await fetch(url, {
+      headers: {
+        // Yahoo sometimes wants a UA header
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        Accept: "application/json,text/plain,*/*",
+      },
+    });
+
     if (!r.ok) {
-      console.error("Yahoo status", r.status);
-      // return empty array instead of 500
-      return res.status(200).json([]);
+      console.error("Yahoo options status", r.status);
+      return res.status(200).json([]); // fail soft
     }
 
     let json;
     try {
       json = await r.json();
     } catch (e) {
-      console.error("Yahoo JSON parse error", e);
+      console.error("Yahoo options JSON error", e);
       return res.status(200).json([]);
     }
 
@@ -42,7 +49,9 @@ export default async function handler(req, res) {
       ask: o.ask,
       volume: o.volume,
       openInterest: o.openInterest,
-      expiration: o.expiration ? new Date(o.expiration * 1000).toISOString() : null,
+      expiration: o.expiration
+        ? new Date(o.expiration * 1000).toISOString()
+        : null,
       inTheMoney: o.inTheMoney,
     });
 
@@ -51,10 +60,9 @@ export default async function handler(req, res) {
       ...puts.map((o) => mapOption(o, "P")),
     ];
 
-    res.status(200).json(options);
+    return res.status(200).json(options);
   } catch (e) {
-    console.error("Options handler error", e);
-    // fail soft: empty list, not 500
-    res.status(200).json([]);
+    console.error("options handler error", e);
+    return res.status(200).json([]); // never 500
   }
 }
