@@ -1,40 +1,52 @@
 // api/options.js
-// Robust Yahoo Finance options loader: tries multiple expiration dates
+// Yahoo Finance options with crumb + cookie handling
 
-async function fetchOptionsForDate(symbol, dateTs) {
-  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
-    symbol
-  )}?date=${dateTs}`;
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
-  const r = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-      Accept: "application/json,text/plain,*/*",
-    },
-  });
+let yahooSession = {
+  cookie: null,
+  crumb: null,
+  lastInit: 0,
+};
 
-  if (!r.ok) {
-    console.error("Yahoo options status", r.status, "for date", dateTs);
-    return [];
+async function initYahooSession() {
+  // Re-use for 1 hour if already fetched
+  if (
+    yahooSession.cookie &&
+    yahooSession.crumb &&
+    Date.now() - yahooSession.lastInit < 60 * 60 * 1000
+  ) {
+    return;
   }
 
-  let json;
-  try {
-    json = await r.json();
-  } catch (e) {
-    console.error("Yahoo options JSON error", e, "for date", dateTs);
-    return [];
+  const resp = await fetch(
+    "https://query1.finance.yahoo.com/v1/test/getcrumb",
+    {
+      headers: {
+        "User-Agent": UA,
+        Accept: "text/plain,*/*",
+      },
+      redirect: "follow",
+    }
+  );
+
+  const text = (await resp.text()).trim();
+  const setCookie = resp.headers.get("set-cookie");
+
+  if (!text || !setCookie) {
+    throw new Error("Failed to init Yahoo crumb/cookie");
   }
 
-  const chain = json?.optionChain?.result?.[0];
-  const opt = chain?.options?.[0];
-  if (!opt) return [];
+  yahooSession = {
+    cookie: setCookie.split(";")[0], // first cookie only
+    crumb: text,
+    lastInit: Date.now(),
+  };
+}
 
-  const calls = opt.calls || [];
-  const puts = opt.puts || [];
-
-  const mapOption = (o, type) => ({
+function mapOption(o, type) {
+  return {
     contractSymbol: o.contractSymbol,
     type, // "C" or "P"
     strike: o.strike,
@@ -47,68 +59,59 @@ async function fetchOptionsForDate(symbol, dateTs) {
       ? new Date(o.expiration * 1000).toISOString()
       : null,
     inTheMoney: o.inTheMoney,
-  });
-
-  return [
-    ...calls.map((o) => mapOption(o, "C")),
-    ...puts.map((o) => mapOption(o, "P")),
-  ];
+  };
 }
 
 export default async function handler(req, res) {
   const { symbol = "GOOGL" } = req.query ?? {};
 
   try {
-    // First request: just to get expirationDates
-    const metaUrl = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
-      symbol
-    )}`;
+    await initYahooSession();
 
-    const metaResp = await fetch(metaUrl, {
+    const { cookie, crumb } = yahooSession;
+
+    const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
+      symbol
+    )}?crumb=${encodeURIComponent(crumb)}`;
+
+    const r = await fetch(url, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        "User-Agent": UA,
         Accept: "application/json,text/plain,*/*",
+        Cookie: cookie,
       },
     });
 
-    if (!metaResp.ok) {
-      console.error("Yahoo options meta status", metaResp.status);
+    if (!r.ok) {
+      console.error("Yahoo options status", r.status);
       return res.status(200).json([]);
     }
 
-    let metaJson;
+    let json;
     try {
-      metaJson = await metaResp.json();
+      json = await r.json();
     } catch (e) {
-      console.error("Yahoo options meta JSON error", e);
+      console.error("Yahoo options JSON error", e);
       return res.status(200).json([]);
     }
 
-    const chain = metaJson?.optionChain?.result?.[0];
-    const dates = chain?.expirationDates || [];
-
-    if (!dates.length) {
-      // No expiration dates → nothing we can do
+    const chain = json?.optionChain?.result?.[0];
+    const opt = chain?.options?.[0];
+    if (!opt) {
       return res.status(200).json([]);
     }
 
-    // Try first few expiries until we find one with actual contracts
-    let allOptions = [];
-    const maxTries = Math.min(dates.length, 5);
+    const calls = opt.calls || [];
+    const puts = opt.puts || [];
 
-    for (let i = 0; i < maxTries; i++) {
-      const dateTs = dates[i];
-      const opts = await fetchOptionsForDate(symbol, dateTs);
-      if (opts.length) {
-        allOptions = opts;
-        break;
-      }
-    }
+    const options = [
+      ...calls.map((o) => mapOption(o, "C")),
+      ...puts.map((o) => mapOption(o, "P")),
+    ];
 
-    return res.status(200).json(allOptions);
+    return res.status(200).json(options);
   } catch (e) {
     console.error("options handler error", e);
-    return res.status(200).json([]); // never 500
+    return res.status(200).json([]); // fail soft, never 500
   }
 }
