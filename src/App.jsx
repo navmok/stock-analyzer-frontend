@@ -10,9 +10,33 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const API_BASE = "http://127.0.0.1:8000"; // FastAPI backend
+const API_BASE = ""; // same-origin (Vercel serverless functions)
 
-const SYMBOLS = ["AAPL", "MSFT", "GOOGL"];
+const SYMBOLS = ["AAPL", "MSFT", "GOOGL", "TSLA", "AMZN"];
+
+// Custom tooltip for better chart info
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div style={{ 
+        background: 'white', 
+        padding: '10px', 
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      }}>
+        <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{data.timeLabel}</p>
+        <p style={{ margin: '2px 0' }}>Open: <strong>${data.open.toFixed(2)}</strong></p>
+        <p style={{ margin: '2px 0' }}>High: <strong>${data.high.toFixed(2)}</strong></p>
+        <p style={{ margin: '2px 0' }}>Low: <strong>${data.low.toFixed(2)}</strong></p>
+        <p style={{ margin: '2px 0' }}>Close: <strong>${data.close.toFixed(2)}</strong></p>
+        <p style={{ margin: '2px 0' }}>Volume: <strong>{data.volume.toLocaleString()}</strong></p>
+      </div>
+    );
+  }
+  return null;
+};
 
 function App() {
   const [symbol, setSymbol] = useState("GOOGL");
@@ -33,6 +57,13 @@ function App() {
         throw new Error(`HTTP ${res.status}`);
       }
       const json = await res.json();
+
+      // Check if data is empty
+      if (!json || json.length === 0) {
+        setError("No data available for this symbol/period");
+        setData([]);
+        return;
+      }
 
       // enrich with formatted time label for the chart
       const enriched = json.map((row) => {
@@ -65,7 +96,7 @@ function App() {
       setData(enriched);
     } catch (e) {
       console.error(e);
-      setError("Failed to load data");
+      setError("Failed to load data: " + e.message);
     } finally {
       setLoading(false);
     }
@@ -81,7 +112,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Stock Dashboard (MVP)</h1>
+        <h1>📈 Stock Dashboard (MVP)</h1>
       </header>
 
       <section className="controls">
@@ -106,26 +137,27 @@ function App() {
         <div className="control">
           <label>Days</label>
           <input
-              type="number"
-              min="1"
-              max="730"
-              value={days}
-              onChange={(e) => {
-                const d = Number(e.target.value || 1);
-                setDays(d);
-                loadData(symbol, d);
-              }}
-            />
+            type="number"
+            min="1"
+            max="730"
+            value={days}
+            onChange={(e) => {
+              const d = Number(e.target.value || 1);
+              setDays(d);
+              loadData(symbol, d);
+            }}
+          />
         </div>
 
         <button onClick={() => loadData()} disabled={loading}>
-          Refresh
+          {loading ? "Loading..." : "Refresh"}
         </button>
 
-        <div className="status">
-          {loading && <span>Loading…</span>}
-          {error && <span className="error">{error}</span>}
-        </div>
+        {error && (
+          <div className="status">
+            <span className="error">{error}</span>
+          </div>
+        )}
       </section>
 
       <main>
@@ -135,7 +167,7 @@ function App() {
             <p>
               <strong>{latest.symbol}</strong> –{" "}
               {new Date(latest.ts_utc).toLocaleString()} – Close:{" "}
-              <strong>{latest.close}</strong>
+              <strong>${latest.close.toFixed(2)}</strong>
             </p>
           </div>
         )}
@@ -157,10 +189,11 @@ function App() {
                 />
                 <YAxis
                   tick={{ fontSize: 10 }}
-                  width={60}
+                  width={70}
                   domain={["auto", "auto"]}
+                  tickFormatter={(value) => `$${value.toFixed(0)}`}
                 />
-                <Tooltip />
+                <Tooltip content={<CustomTooltip />} />
                 <Line
                   type="monotone"
                   dataKey="close"
@@ -176,39 +209,41 @@ function App() {
         {/* ==== TABLE ==== */}
         <div className="table-wrapper">
           <h2>Data ({data.length} rows)</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Time (UTC)</th>
-                <th>Symbol</th>
-                <th>Open</th>
-                <th>High</th>
-                <th>Low</th>
-                <th>Close</th>
-                <th>Volume</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((row, idx) => (
-                <tr key={idx}>
-                  <td>{new Date(row.ts_utc).toLocaleString()}</td>
-                  <td>{row.symbol}</td>
-                  <td>{row.open}</td>
-                  <td>{row.high}</td>
-                  <td>{row.low}</td>
-                  <td>{row.close}</td>
-                  <td>{row.volume}</td>
-                </tr>
-              ))}
-              {!data.length && !loading && (
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center" }}>
-                    No data
-                  </td>
+                  <th>Time (UTC)</th>
+                  <th>Symbol</th>
+                  <th>Open</th>
+                  <th>High</th>
+                  <th>Low</th>
+                  <th>Close</th>
+                  <th>Volume</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>{new Date(row.ts_utc).toLocaleString()}</td>
+                    <td>{row.symbol}</td>
+                    <td>${row.open.toFixed(2)}</td>
+                    <td>${row.high.toFixed(2)}</td>
+                    <td>${row.low.toFixed(2)}</td>
+                    <td>${row.close.toFixed(2)}</td>
+                    <td>{row.volume.toLocaleString()}</td>
+                  </tr>
+                ))}
+                {!data.length && !loading && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center" }}>
+                      No data
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
     </div>
