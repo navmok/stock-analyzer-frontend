@@ -1,102 +1,29 @@
-// api/options.js
-// Yahoo Finance options with crumb + cookie handling
-
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-
-let yahooSession = {
-  cookie: null,
-  crumb: null,
-  lastInit: 0,
-};
-
-async function initYahooSession() {
-  // Re-use for 1 hour if already fetched
-  if (
-    yahooSession.cookie &&
-    yahooSession.crumb &&
-    Date.now() - yahooSession.lastInit < 60 * 60 * 1000
-  ) {
-    return;
-  }
-
-  const resp = await fetch(
-    "https://query1.finance.yahoo.com/v1/test/getcrumb",
-    {
-      headers: {
-        "User-Agent": UA,
-        Accept: "text/plain,*/*",
-      },
-      redirect: "follow",
-    }
-  );
-
-  const text = (await resp.text()).trim();
-  const setCookie = resp.headers.get("set-cookie");
-
-  if (!text || !setCookie) {
-    throw new Error("Failed to init Yahoo crumb/cookie");
-  }
-
-  yahooSession = {
-    cookie: setCookie.split(";")[0], // first cookie only
-    crumb: text,
-    lastInit: Date.now(),
-  };
-}
-
-function mapOption(o, type) {
-  return {
-    contractSymbol: o.contractSymbol,
-    type, // "C" or "P"
-    strike: o.strike,
-    lastPrice: o.lastPrice,
-    bid: o.bid,
-    ask: o.ask,
-    volume: o.volume,
-    openInterest: o.openInterest,
-    expiration: o.expiration
-      ? new Date(o.expiration * 1000).toISOString()
-      : null,
-    inTheMoney: o.inTheMoney,
-  };
-}
+// api/options.js  (Vercel Serverless Function)
 
 export default async function handler(req, res) {
-  const { symbol = "GOOGL" } = req.query ?? {};
+  const symbol = req.query.symbol || "AAPL";
+
+  const url = `https://query2.finance.yahoo.com/v7/finance/options/${symbol}`;
 
   try {
-    await initYahooSession();
-
-    const { cookie, crumb } = yahooSession;
-
-    const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
-      symbol
-    )}?crumb=${encodeURIComponent(crumb)}`;
-
-    const r = await fetch(url, {
+    const yahooRes = await fetch(url, {
       headers: {
-        "User-Agent": UA,
-        Accept: "application/json,text/plain,*/*",
-        Cookie: cookie,
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json,text/plain,*/*",
       },
     });
 
-    if (!r.ok) {
-      console.error("Yahoo options status", r.status);
-      return res.status(200).json([]);
+    if (!yahooRes.ok) {
+      return res.status(yahooRes.status).json({
+        error: `Yahoo rejected the request: HTTP ${yahooRes.status}`,
+      });
     }
 
-    let json;
-    try {
-      json = await r.json();
-    } catch (e) {
-      console.error("Yahoo options JSON error", e);
-      return res.status(200).json([]);
-    }
+    const json = await yahooRes.json();
 
     const chain = json?.optionChain?.result?.[0];
     const opt = chain?.options?.[0];
+
     if (!opt) {
       return res.status(200).json([]);
     }
@@ -104,14 +31,27 @@ export default async function handler(req, res) {
     const calls = opt.calls || [];
     const puts = opt.puts || [];
 
-    const options = [
+    const mapOption = (o, type) => ({
+      contractSymbol: o.contractSymbol,
+      type,
+      strike: o.strike,
+      lastPrice: o.lastPrice,
+      bid: o.bid,
+      ask: o.ask,
+      volume: o.volume,
+      openInterest: o.openInterest,
+      expiration: o.expiration
+        ? new Date(o.expiration * 1000).toISOString()
+        : null,
+      inTheMoney: o.inTheMoney,
+    });
+
+    return res.status(200).json([
       ...calls.map((o) => mapOption(o, "C")),
       ...puts.map((o) => mapOption(o, "P")),
-    ];
-
-    return res.status(200).json(options);
-  } catch (e) {
-    console.error("options handler error", e);
-    return res.status(200).json([]); // fail soft, never 500
+    ]);
+  } catch (error) {
+    console.error("Error fetching Yahoo options:", error);
+    return res.status(500).json({ error: error.message });
   }
 }
