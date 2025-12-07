@@ -3,11 +3,12 @@
 export default async function handler(req, res) {
   const symbol = req.query?.symbol || "GOOG";
   const daysParam = req.query?.days;
+											
+																	 
 
-  // NO CLAMP: just enforce minimum 1
+  // minimum 1 day, otherwise whatever the user passes
   const d = Math.max(1, parseInt(daysParam, 10) || 1);
 
-  // Decide interval + range based on requested days
   let interval;
   let range;
 
@@ -20,9 +21,21 @@ export default async function handler(req, res) {
     interval = "5m";
     range = "60d";
   } else {
-    // Beyond 60 days -> daily candles
+    // Daily data; choose a range that keeps 1d resolution
     interval = "1d";
-    range = "max"; // we’ll filter to last d days manually
+
+    if (d <= 365) {
+      range = "1y";
+    } else if (d <= 730) {
+      range = "2y";
+    } else if (d <= 5 * 365) {
+      range = "5y";
+    } else if (d <= 10 * 365) {
+      range = "10y";
+    } else {
+      // really long spans – may get coarser, but we'll still trim
+      range = "max";
+    }
   }
 
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
@@ -65,7 +78,7 @@ export default async function handler(req, res) {
         const close = closes[idx];
         const volume = volumes[idx];
 
-        // Filter out any null/undefined rows
+											 
         if (
           open == null ||
           high == null ||
@@ -88,11 +101,11 @@ export default async function handler(req, res) {
       })
       .filter(Boolean);
 
-    // --- Trim to last `d` days based on timestamps ---
+    // Trim to last `d` days using timestamps
     let filtered = rows;
     if (rows.length > 0) {
       const msPerDay = 24 * 60 * 60 * 1000;
-      // data from Yahoo is ascending; last row is most recent
+																	   
       const lastTs = new Date(rows[rows.length - 1].ts_utc).getTime();
       const cutoff = lastTs - d * msPerDay;
 
