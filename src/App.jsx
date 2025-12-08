@@ -401,8 +401,10 @@ export default function App() {
         {/* ==== PRICE CHART ==== */}
         <div className="chart-wrapper">
           <h2>Price (close) + Moving Averages</h2>
-          <div style={{ width: "100%", height: 300 }}>
-            <ResponsiveContainer>
+
+          {/* CHANGED: use a dedicated full-width chart container */}
+          <div className="chart-inner">
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
