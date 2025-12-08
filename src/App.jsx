@@ -44,34 +44,54 @@ const MAX_ACTIVE = 5;
 
 // ---- helper to compute moving averages on 'close' ----
 function addMovingAverages(rows) {
+  const WEEK = 7; // weekly MA
   const ONE_M = 30; // 1 month ≈ 30 days
   const THREE_M = 90; // 3 months ≈ 90 days
   const TWELVE_M = 365; // 12 months ≈ 365 days
+  const EMA_PERIOD = 20; // 20-day EMA (common default)
+  const alpha = 2 / (EMA_PERIOD + 1);
 
-  let sum1 = 0,
+  let sumWeek = 0,
+    sum1 = 0,
     sum3 = 0,
     sum12 = 0;
+
+  let ema = null;
 
   return rows.map((row, i) => {
     const close = row.close;
 
+    // running sums for simple MAs
+    sumWeek += close;
     sum1 += close;
     sum3 += close;
     sum12 += close;
 
+    if (i >= WEEK) sumWeek -= rows[i - WEEK].close;
     if (i >= ONE_M) sum1 -= rows[i - ONE_M].close;
     if (i >= THREE_M) sum3 -= rows[i - THREE_M].close;
     if (i >= TWELVE_M) sum12 -= rows[i - TWELVE_M].close;
 
+    const maWeek = i >= WEEK - 1 ? sumWeek / WEEK : null;
     const ma1M = i >= ONE_M - 1 ? sum1 / ONE_M : null;
     const ma3M = i >= THREE_M - 1 ? sum3 / THREE_M : null;
     const ma12M = i >= TWELVE_M - 1 ? sum12 / TWELVE_M : null;
 
+    // EMA (20-day)
+    if (ema === null) {
+      ema = close; // seed with first value
+    } else {
+      ema = alpha * close + (1 - alpha) * ema;
+    }
+    const emaVal = i >= EMA_PERIOD - 1 ? ema : null;
+
     return {
       ...row,
+      maWeek,
       ma1M,
       ma3M,
       ma12M,
+      ema: emaVal,
     };
   });
 }
@@ -109,21 +129,33 @@ const CustomTooltip = ({ active, payload }) => {
         </p>
         <hr />
         <p style={{ margin: "2px 0" }}>
-          1M MA:{" "}
+          Weekly MA:{" "}
+          <strong>
+            {data.maWeek != null ? `$${data.maWeek.toFixed(2)}` : "–"}
+          </strong>
+        </p>
+        <p style={{ margin: "2px 0" }}>
+          Month MA:{" "}
           <strong>
             {data.ma1M != null ? `$${data.ma1M.toFixed(2)}` : "–"}
           </strong>
         </p>
         <p style={{ margin: "2px 0" }}>
-          3M MA:{" "}
+          Quarter MA:{" "}
           <strong>
             {data.ma3M != null ? `$${data.ma3M.toFixed(2)}` : "–"}
           </strong>
         </p>
         <p style={{ margin: "2px 0" }}>
-          12M MA:{" "}
+          Year MA:{" "}
           <strong>
             {data.ma12M != null ? `$${data.ma12M.toFixed(2)}` : "–"}
+          </strong>
+        </p>
+        <p style={{ margin: "2px 0" }}>
+          EMA (20d):{" "}
+          <strong>
+            {data.ema != null ? `$${data.ema.toFixed(2)}` : "–"}
           </strong>
         </p>
       </div>
@@ -146,9 +178,13 @@ export default function App() {
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState("");
 
-  const [show1M, setShow1M] = useState(true);
-  const [show3M, setShow3M] = useState(true);
-  const [show12M, setShow12M] = useState(true);
+  const [show1M, setShow1M] = useState(true); // Month
+  const [show3M, setShow3M] = useState(true); // Quarter
+  const [show12M, setShow12M] = useState(true); // Year
+
+  // NEW: Weekly + EMA toggles
+  const [showWeek, setShowWeek] = useState(true);
+  const [showEma, setShowEma] = useState(false);
 
   // === NEW: helpers for selecting / adding symbols ===
   function handleSelectSymbol(sym) {
@@ -349,7 +385,19 @@ export default function App() {
       <section className="ma-toggles">
         <div className="ma-toggle-group">
           <label className="ma-toggle">
-            <span>1M MA</span>
+            <span>Weekly MA</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={showWeek}
+                onChange={(e) => setShowWeek(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
+
+          <label className="ma-toggle">
+            <span>Month MA</span>
             <label className="switch">
               <input
                 type="checkbox"
@@ -361,7 +409,7 @@ export default function App() {
           </label>
 
           <label className="ma-toggle">
-            <span>3M MA</span>
+            <span>Quarter MA</span>
             <label className="switch">
               <input
                 type="checkbox"
@@ -373,12 +421,24 @@ export default function App() {
           </label>
 
           <label className="ma-toggle">
-            <span>12M MA</span>
+            <span>Year MA</span>
             <label className="switch">
               <input
                 type="checkbox"
                 checked={show12M}
                 onChange={(e) => setShow12M(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
+
+          <label className="ma-toggle">
+            <span>EMA (20d)</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={showEma}
+                onChange={(e) => setShowEma(e.target.checked)}
               />
               <span className="slider"></span>
             </label>
@@ -402,7 +462,7 @@ export default function App() {
         <div className="chart-wrapper">
           <h2>Price (close) + Moving Averages</h2>
 
-          {/* CHANGED: use a dedicated full-width chart container */}
+																	 
           <div className="chart-inner">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
@@ -431,11 +491,22 @@ export default function App() {
                   dot={false}
                   strokeWidth={2}
                 />
+                {showWeek && (
+                  <Line
+                    type="monotone"
+                    dataKey="maWeek"
+                    name="Weekly MA"
+                    stroke="#a855f7"
+                    dot={false}
+                    strokeWidth={1.5}
+                    connectNulls
+                  />
+                )}
                 {show1M && (
                   <Line
                     type="monotone"
                     dataKey="ma1M"
-                    name="1M MA"
+                    name="Month MA"
                     stroke="#22c55e"
                     dot={false}
                     strokeWidth={1.5}
@@ -446,7 +517,7 @@ export default function App() {
                   <Line
                     type="monotone"
                     dataKey="ma3M"
-                    name="3M MA"
+                    name="Quarter MA"
                     stroke="#facc15"
                     dot={false}
                     strokeWidth={1.5}
@@ -457,8 +528,19 @@ export default function App() {
                   <Line
                     type="monotone"
                     dataKey="ma12M"
-                    name="12M MA"
+                    name="Year MA"
                     stroke="#f97316"
+                    dot={false}
+                    strokeWidth={1.5}
+                    connectNulls
+                  />
+                )}
+                {showEma && (
+                  <Line
+                    type="monotone"
+                    dataKey="ema"
+                    name="EMA (20d)"
+                    stroke="#e11d48"
                     dot={false}
                     strokeWidth={1.5}
                     connectNulls
