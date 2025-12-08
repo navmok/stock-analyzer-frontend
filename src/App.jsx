@@ -178,12 +178,12 @@ export default function App() {
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState("");
 
-  const [show1M, setShow1M] = useState(true); // Month
-  const [show3M, setShow3M] = useState(true); // Quarter
-  const [show12M, setShow12M] = useState(true); // Year
+  const [show1M, setShow1M] = useState(false); // Month
+  const [show3M, setShow3M] = useState(false); // Quarter
+  const [show12M, setShow12M] = useState(false); // Year
 
   // NEW: Weekly + EMA toggles
-  const [showWeek, setShowWeek] = useState(true);
+  const [showWeek, setShowWeek] = useState(false);
   const [showEma, setShowEma] = useState(false);
 
   // === NEW: helpers for selecting / adding symbols ===
