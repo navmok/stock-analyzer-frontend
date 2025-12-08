@@ -22,19 +22,31 @@ a:hover {
   color: #535bf2;
 }
 
-body {
+/* 🚀 FIX: Make the entire layout full width */
+html,
+body,
+#root {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  padding: 0;
+  width: 100%;
+  height: 100%;
 }
 
+/* 🚫 Remove flex centering that caused everything to appear left-narrow */
+body {
+  display: block;
+  min-width: 0;
+  min-height: 100vh;
+  background-color: #242424; /* keep default dark background */
+}
+
+/* Keep typography defaults */
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
 }
 
+/* Buttons default styling */
 button {
   border-radius: 8px;
   border: 1px solid transparent;
@@ -46,14 +58,17 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
+/* Light mode adjustments */
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
