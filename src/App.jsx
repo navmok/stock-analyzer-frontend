@@ -436,7 +436,7 @@ export default function App() {
               <button
                 key={s}
                 type="button"
-                className={`symbol-chip ${s === symbol ? "active" : ""}`}
+                className="symbol-chip"
                 onClick={() => handleSelectSymbol(s)}
               >
                 <span>{s}</span>
