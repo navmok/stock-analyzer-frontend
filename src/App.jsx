@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import "./App.css";
 import {
   LineChart,
@@ -16,7 +16,7 @@ const API_BASE =
     ? "https://stock-analyzer-frontend-cxem.vercel.app"
     : "";
 
-// === NEW: master list + default active + max ===
+// Master list + default active + max
 const ALL_SYMBOLS = [
   "RIOT",
   "COST",
@@ -96,103 +96,155 @@ function addMovingAverages(rows) {
   });
 }
 
-// Custom tooltip for better chart info
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div
-        style={{
-          background: "white",
-          padding: "10px",
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-          color: "black",
-        }}
-      >
-        <p style={{ margin: "2px 0", fontWeight: "bold" }}>{data.timeLabel}</p>
-        <p style={{ margin: "2px 0" }}>
-          Close: <strong>${data.close.toFixed(2)}</strong>
+// Multi-stock tooltip: shows each line + primary MAs if present
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const primaryPayload = payload[0]?.payload || {};
+
+  return (
+    <div
+      style={{
+        background: "white",
+        padding: "10px",
+        border: "1px solid #ccc",
+        borderRadius: "4px",
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        color: "black",
+      }}
+    >
+      <p style={{ margin: "2px 0", fontWeight: "bold" }}>{label}</p>
+
+      {payload.map((entry) => (
+			
+									   
+														
+			
+									   
+														
+			
+									   
+													  
+			
+									   
+																 
+			
+			  
+									   
+						 
+				  
+																		
+				   
+			
+									   
+						
+				  
+																	
+				   
+			
+        <p key={entry.dataKey} style={{ margin: "2px 0" }}>
+          {entry.name}: <strong>${entry.value.toFixed(2)}</strong>
+				  
+																	
+				   
+			
+									   
+					   
+				  
+																	  
+				   
+			
+									   
+						 
+				  
+																  
+				   
         </p>
-        <p style={{ margin: "2px 0" }}>
-          Open: <strong>${data.open.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          High: <strong>${data.high.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Low: <strong>${data.low.toFixed(2)}</strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Volume: <strong>{data.volume.toLocaleString()}</strong>
-        </p>
-        <hr />
-        <p style={{ margin: "2px 0" }}>
-          Weekly MA:{" "}
-          <strong>
-            {data.maWeek != null ? `$${data.maWeek.toFixed(2)}` : "–"}
-          </strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Month MA:{" "}
-          <strong>
-            {data.ma1M != null ? `$${data.ma1M.toFixed(2)}` : "–"}
-          </strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Quarter MA:{" "}
-          <strong>
-            {data.ma3M != null ? `$${data.ma3M.toFixed(2)}` : "–"}
-          </strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          Year MA:{" "}
-          <strong>
-            {data.ma12M != null ? `$${data.ma12M.toFixed(2)}` : "–"}
-          </strong>
-        </p>
-        <p style={{ margin: "2px 0" }}>
-          EMA (20d):{" "}
-          <strong>
-            {data.ema != null ? `$${data.ema.toFixed(2)}` : "–"}
-          </strong>
-        </p>
-      </div>
-    );
-  }
-  return null;
+      ))}
+
+      {/* Only show MAs/EMA if they exist (primary symbol) */}
+      {(primaryPayload.maWeek != null ||
+        primaryPayload.ma1M != null ||
+        primaryPayload.ma3M != null ||
+        primaryPayload.ma12M != null ||
+        primaryPayload.ema != null) && (
+        <>
+          <hr />
+          {primaryPayload.maWeek != null && (
+            <p style={{ margin: "2px 0" }}>
+              Weekly MA (primary):{" "}
+              <strong>${primaryPayload.maWeek.toFixed(2)}</strong>
+            </p>
+          )}
+   
+          {primaryPayload.ma1M != null && (
+            <p style={{ margin: "2px 0" }}>
+              Month MA (primary):{" "}
+              <strong>${primaryPayload.ma1M.toFixed(2)}</strong>
+            </p>
+          )}
+          {primaryPayload.ma3M != null && (
+            <p style={{ margin: "2px 0" }}>
+              Quarter MA (primary):{" "}
+              <strong>${primaryPayload.ma3M.toFixed(2)}</strong>
+            </p>
+          )}
+          {primaryPayload.ma12M != null && (
+            <p style={{ margin: "2px 0" }}>
+              Year MA (primary):{" "}
+              <strong>${primaryPayload.ma12M.toFixed(2)}</strong>
+            </p>
+          )}
+          {primaryPayload.ema != null && (
+            <p style={{ margin: "2px 0" }}>
+              EMA (20d, primary):{" "}
+                <strong>${primaryPayload.ema.toFixed(2)}</strong>
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
 };
 
+// Color palette for up to 5 stocks
+const LINE_COLORS = ["#60a5fa", "#22c55e", "#f97316", "#a855f7", "#e11d48"];
+
 export default function App() {
-  // === CHANGED: symbol state split into activeSymbols + current symbol ===
+  // Active stocks and primary stock (for options + MAs)
   const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
   const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
 
   const [days, setDays] = useState(365);
-  const [data, setData] = useState([]);
+
+  // Multi-stock data: symbol -> enriched rows with MAs
+  const [seriesBySymbol, setSeriesBySymbol] = useState({});
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Options still tied to the primary symbol
   const [options, setOptions] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState("");
 
+  // Moving average toggles (all OFF by default, per your request)
   const [show1M, setShow1M] = useState(false); // Month
   const [show3M, setShow3M] = useState(false); // Quarter
   const [show12M, setShow12M] = useState(false); // Year
 
-  // NEW: Weekly + EMA toggles
-  const [showWeek, setShowWeek] = useState(false);
-  const [showEma, setShowEma] = useState(false);
+							  
+  const [showWeek, setShowWeek] = useState(false); // Weekly
+  const [showEma, setShowEma] = useState(false); // EMA
 
-  // === NEW: helpers for selecting / adding symbols ===
+  // ---- helper: select a primary symbol ----
   function handleSelectSymbol(sym) {
     setSymbol(sym);
-    loadData(sym, days);
+    // we do NOT refetch prices here; multi-stock data is loaded for all active symbols
     loadOptions(sym);
   }
 
+  // ---- helper: add a new symbol (max 5) ----
   function handleAddSymbol(newSym) {
     if (!newSym) return;
 
@@ -201,65 +253,83 @@ export default function App() {
 
       let updated = [...prev, newSym];
       if (updated.length > MAX_ACTIVE) {
-        // drop oldest to keep last MAX_ACTIVE symbols
+        // keep last MAX_ACTIVE
         updated = updated.slice(updated.length - MAX_ACTIVE);
       }
       return updated;
     });
 
+    // Newly added symbol becomes primary
     handleSelectSymbol(newSym);
   }
 
-  // ---- LOAD PRICE DATA ----
-  async function loadData(sym = symbol, d = days) {
+  // ---- LOAD PRICE DATA FOR ALL ACTIVE SYMBOLS ----
+  async function loadDataForSymbols(symbols = activeSymbols, d = days) {
+    if (!symbols.length) return;
+
     setLoading(true);
     setError("");
 
     try {
-      const url = `${API_BASE}/api/prices?symbol=${encodeURIComponent(
-        sym
-      )}&days=${d}`;
-      console.log("Fetching prices:", url);
+      const fetches = symbols.map(async (sym) => {
+        const url = `${API_BASE}/api/prices?symbol=${encodeURIComponent(
+          sym
+        )}&days=${d}`;
+        console.log("Fetching prices:", url);
 
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const json = await res.json();
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} for ${sym}`);
+        }
+        const json = await res.json();
 
-      if (!json || json.length === 0) {
-        setError("No data available for this symbol/period");
-        setData([]);
-        return;
-      }
-
-      const enriched = json.map((row) => {
-        const date = new Date(row.ts_utc);
-
-        let timeLabel;
-        if (d <= 5) {
-          timeLabel = date.toLocaleString("en-US", {
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        } else {
-          timeLabel = date.toLocaleDateString("en-US", {
-            month: "numeric",
-            day: "numeric",
-            year: "2-digit",
-          });
+        if (!json || json.length === 0) {
+          return [sym, []];
+					
+			   
         }
 
-        return {
-          ...row,
-          timeLabel,
-        };
+        const enriched = json.map((row) => {
+          const date = new Date(row.ts_utc);
+          let timeLabel;
+
+					  
+          if (d <= 5) {
+            timeLabel = date.toLocaleString("en-US", {
+              month: "numeric",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          } else {
+            timeLabel = date.toLocaleDateString("en-US", {
+              month: "numeric",
+              day: "numeric",
+              year: "2-digit",
+            });
+          }
+
+          return { ...row, timeLabel };
+        });
+
+        const withMA = addMovingAverages(enriched);
+        return [sym, withMA];
       });
 
-      const withMA = addMovingAverages(enriched);
-      setData(withMA);
+      const results = await Promise.all(fetches);
+
+      const newSeries = {};
+      for (const [sym, series] of results) {
+        newSeries[sym] = series;
+      }
+
+      setSeriesBySymbol(newSeries);
+
+      // Basic error if any symbol had no data
+      const emptySymbols = results.filter(([, series]) => !series.length).map(([s]) => s);
+      if (emptySymbols.length === symbols.length) {
+        setError("No data available for the selected symbols/period");
+      }
     } catch (e) {
       console.error(e);
       setError("Failed to load data: " + e.message);
@@ -268,8 +338,10 @@ export default function App() {
     }
   }
 
-  // ---- LOAD OPTIONS DATA ----
+  // ---- LOAD OPTIONS DATA (PRIMARY SYMBOL ONLY) ----
   async function loadOptions(sym = symbol) {
+    if (!sym) return;
+
     setOptionsLoading(true);
     setOptionsError("");
 
@@ -294,13 +366,66 @@ export default function App() {
     }
   }
 
+  // Initial load + when activeSymbols or days change
   useEffect(() => {
-    loadData();
-    loadOptions();
+    loadDataForSymbols();
+    loadOptions(symbol);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeSymbols, days]);
 
-  const latest = data.length ? data[data.length - 1] : null;
+  // ----- Build combined chart data (1–5 stocks on same chart) -----
+  const chartData = useMemo(() => {
+    const map = new Map();
+
+    activeSymbols.forEach((sym) => {
+      const series = seriesBySymbol[sym] || [];
+      series.forEach((row) => {
+        const key = row.ts_utc;
+        let base = map.get(key);
+        if (!base) {
+          base = {
+            ts_utc: row.ts_utc,
+            timeLabel: row.timeLabel,
+          };
+          map.set(key, base);
+        }
+
+        // One close field per symbol
+        base[`${sym}_close`] = row.close;
+
+        // For the primary symbol, also carry over MAs/EMA
+        if (sym === symbol) {
+          base.maWeek = row.maWeek;
+          base.ma1M = row.ma1M;
+          base.ma3M = row.ma3M;
+          base.ma12M = row.ma12M;
+          base.ema = row.ema;
+        }
+      });
+    });
+
+    const combined = Array.from(map.values());
+    combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
+    return combined;
+  }, [activeSymbols, seriesBySymbol, symbol]);
+
+  // ----- Build table data: flatten all series with symbol column -----
+  const tableRows = useMemo(() => {
+    const rows = [];
+    activeSymbols.forEach((sym) => {
+      const series = seriesBySymbol[sym] || [];
+      series.forEach((row) => {
+        rows.push({ ...row, symbol: sym });
+      });
+    });
+
+    rows.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
+    return rows;
+  }, [activeSymbols, seriesBySymbol]);
+
+  // Latest = last point of primary symbol
+  const latestSeries = seriesBySymbol[symbol] || [];
+  const latest = latestSeries.length ? latestSeries[latestSeries.length - 1] : null;
 
   return (
     <div className="app">
@@ -309,9 +434,9 @@ export default function App() {
       </header>
 
       <section className="controls">
-        {/* === NEW: active symbols displayed as chips (max 5) === */}
+        {/* Active symbols chips (1–5) */}
         <div className="control-group">
-          <span className="control-label">Stocks in view (max 5)</span>
+          <span className="control-label">Stocks in view (1–5)</span>
           <div className="symbol-chips">
             {activeSymbols.map((s) => (
               <button
@@ -326,7 +451,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* === NEW: Add stock selector (adds, drops oldest if >5) === */}
+        {/* Add stock selector (adds, drops oldest if >5) */}
         <div className="control">
           <label>Add stock</label>
           <select
@@ -345,7 +470,7 @@ export default function App() {
           </select>
         </div>
 
-        {/* Days + buttons (unchanged) */}
+        {/* Days + buttons */}
         <div className="control">
           <label>Days</label>
           <input
@@ -356,12 +481,12 @@ export default function App() {
             onChange={(e) => {
               const d = Number(e.target.value || 1);
               setDays(d);
-              loadData(symbol, d);
+								  
             }}
           />
         </div>
 
-        <button onClick={() => loadData()} disabled={loading}>
+        <button onClick={() => loadDataForSymbols()} disabled={loading}>
           {loading ? "Loading..." : "Refresh"}
         </button>
 
@@ -381,7 +506,7 @@ export default function App() {
         )}
       </section>
 
-      {/* Moving average toggles */}
+      {/* Moving average toggles (applied to primary symbol only) */}
       <section className="ma-toggles">
         <div className="ma-toggle-group">
           <label className="ma-toggle">
@@ -451,21 +576,21 @@ export default function App() {
           <div className="latest">
             <h2>Latest</h2>
             <p>
-              <strong>{latest.symbol}</strong> –{" "}
+              <strong>{symbol}</strong> –{" "}
               {new Date(latest.ts_utc).toLocaleString()} – Close:{" "}
               <strong>${latest.close.toFixed(2)}</strong>
             </p>
           </div>
         )}
 
-        {/* ==== PRICE CHART ==== */}
+        {/* ==== MULTI-STOCK PRICE CHART ==== */}
         <div className="chart-wrapper">
-          <h2>Price (close) + Moving Averages</h2>
+          <h2>Price (close) – {activeSymbols.join(", ")}</h2>
 
-																	 
+				  
           <div className="chart-inner">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
+              <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="timeLabel"
@@ -483,19 +608,27 @@ export default function App() {
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="close"
-                  name="Close"
-                  stroke="#60a5fa"
-                  dot={false}
-                  strokeWidth={2}
-                />
+
+                {/* One Close line per active symbol */}
+                {activeSymbols.map((s, idx) => (
+                  <Line
+                    key={s}
+                    type="monotone"
+                    dataKey={`${s}_close`}
+                    name={`${s} Close`}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                    dot={false}
+                    strokeWidth={2}
+                    connectNulls
+                  />
+                ))}
+
+                {/* MAs/EMA for primary symbol only (using fields on combined data) */}
                 {showWeek && (
                   <Line
                     type="monotone"
                     dataKey="maWeek"
-                    name="Weekly MA"
+                    name="Weekly MA (primary)"
                     stroke="#a855f7"
                     dot={false}
                     strokeWidth={1.5}
@@ -506,7 +639,7 @@ export default function App() {
                   <Line
                     type="monotone"
                     dataKey="ma1M"
-                    name="Month MA"
+                    name="Month MA (primary)"
                     stroke="#22c55e"
                     dot={false}
                     strokeWidth={1.5}
@@ -517,7 +650,7 @@ export default function App() {
                   <Line
                     type="monotone"
                     dataKey="ma3M"
-                    name="Quarter MA"
+                    name="Quarter MA (primary)"
                     stroke="#facc15"
                     dot={false}
                     strokeWidth={1.5}
@@ -528,7 +661,7 @@ export default function App() {
                   <Line
                     type="monotone"
                     dataKey="ma12M"
-                    name="Year MA"
+                    name="Year MA (primary)"
                     stroke="#f97316"
                     dot={false}
                     strokeWidth={1.5}
@@ -539,7 +672,7 @@ export default function App() {
                   <Line
                     type="monotone"
                     dataKey="ema"
-                    name="EMA (20d)"
+                    name="EMA (20d, primary)"
                     stroke="#e11d48"
                     dot={false}
                     strokeWidth={1.5}
@@ -551,9 +684,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* ==== PRICE TABLE ==== */}
+        {/* ==== PRICE TABLE (ALL ACTIVE SYMBOLS) ==== */}
         <div className="table-wrapper">
-          <h2>Data ({data.length} rows)</h2>
+          <h2>Data ({tableRows.length} rows)</h2>
           <div style={{ maxHeight: "400px", overflowY: "auto" }}>
             <table>
               <thead>
@@ -568,7 +701,7 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((row, idx) => (
+                {tableRows.map((row, idx) => (
                   <tr key={idx}>
                     <td>{new Date(row.ts_utc).toLocaleString()}</td>
                     <td>{row.symbol}</td>
@@ -579,7 +712,7 @@ export default function App() {
                     <td>{row.volume.toLocaleString()}</td>
                   </tr>
                 ))}
-                {!data.length && !loading && (
+                {!tableRows.length && !loading && (
                   <tr>
                     <td colSpan="7" style={{ textAlign: "center" }}>
                       No data
@@ -591,9 +724,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* ==== OPTIONS TABLE ==== */}
+        {/* ==== OPTIONS TABLE (PRIMARY SYMBOL) ==== */}
         <div className="table-wrapper">
-          <h2>Options ({options.length} rows)</h2>
+          <h2>Options for {symbol} ({options.length} rows)</h2>
           {optionsLoading && <p>Loading options…</p>}
           {!optionsLoading && !options.length && <p>No options loaded.</p>}
 
