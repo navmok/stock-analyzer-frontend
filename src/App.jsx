@@ -441,25 +441,28 @@ export default function App() {
         <h1>📈 Stock Dashboard (MVP)</h1>
       </header>
 
-      <section className="controls">
+        <section className="controls">
         {/* Active symbols chips (1–5) */}
         <div className="control-group">
-          <span className="control-label">Stocks in view (1–5)</span>
-          <div className="symbol-chips">
+            <span className="control-label">Stocks in view (1–5)</span>
+            <span className="control-hint">
+            Click a chip to toggle it on/off in the chart and table. At least one must stay on.
+            </span>
+            <div className="symbol-chips">
             {activeSymbols.map((s) => {
-              const isVisible = visibleSymbols.includes(s);
-              return (
+                const isVisible = visibleSymbols.includes(s);
+                return (
                 <button
-                  key={s}
-                  type="button"
-                  className={`symbol-chip ${isVisible ? "active" : ""}`}
-                  onClick={() => handleToggleVisibleSymbol(s)}
+                    key={s}
+                    type="button"
+                    className={`symbol-chip ${isVisible ? "active" : ""}`}
+                    onClick={() => handleToggleVisibleSymbol(s)}
                 >
-                  {s}
+                    {s}
                 </button>
-              );
+                );
             })}
-          </div>
+            </div>
         </div>
 
         {/* Add stock selector (adds, drops oldest if >5) */}

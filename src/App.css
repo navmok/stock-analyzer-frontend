@@ -68,6 +68,12 @@ body {
   font-weight: 500;
 }
 
+.control-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
 /* NEW: chips row for active stocks */
 .symbol-chips {
   display: flex;
