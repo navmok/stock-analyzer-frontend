@@ -89,12 +89,21 @@ body {
   color: #e5e7eb;
   font-size: 0.8rem;
   cursor: pointer;
+  display: inline-flex;   /* NEW */
+  align-items: center;    /* NEW */
+  gap: 6px;               /* NEW */
 }
 
 .symbol-chip.active {
   border-color: #38bdf8;
   background-color: #0ea5e9;
   color: #0f172a;
+}
+
+.chip-remove {
+  font-weight: bold;
+  cursor: pointer;
+  padding-left: 2px;
 }
 
 button {

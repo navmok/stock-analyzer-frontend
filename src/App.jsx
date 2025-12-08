@@ -16,7 +16,7 @@ const API_BASE =
     ? "https://stock-analyzer-frontend-cxem.vercel.app"
     : "";
 
-// === master list + default active + max ===
+// master list + default active + max
 const ALL_SYMBOLS = [
   "RIOT",
   "COST",
@@ -172,8 +172,6 @@ export default function App() {
   const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
   // primary symbol for "Latest" + MAs
   const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
-  // which of the active symbols are actually visible on chart + tables
-  const [visibleSymbols, setVisibleSymbols] = useState(DEFAULT_ACTIVE);
 
   const [days, setDays] = useState(365);
 
@@ -212,48 +210,36 @@ export default function App() {
       return updated;
     });
 
-    // make it visible and primary
-    setVisibleSymbols((prev) =>
-      prev.includes(newSym) ? prev : [...prev, newSym]
-    );
     setSymbol(newSym);
   }
 
-  // --- toggle which stocks are visible on chart + tables ---
-  function handleToggleVisibleSymbol(sym) {
-    setVisibleSymbols((prev) => {
-      const isVisible = prev.includes(sym);
+  // --- remove symbol via X on chip ---
+  function handleRemoveSymbol(sym) {
+    setActiveSymbols((prev) => {
+      const updated = prev.filter((s) => s !== sym);
 
-      // don't allow 0 visible symbols
-      if (isVisible && prev.length === 1) return prev;
-
-      let next;
-      if (isVisible) {
-        next = prev.filter((s) => s !== sym);
-
-        // if we hid the primary, move primary to another visible symbol
-        if (sym === symbol && next.length > 0) {
-          const newPrimary = next[next.length - 1];
-          setSymbol(newPrimary);
-        }
-      } else {
-        next = [...prev, sym];
-        setSymbol(sym);
+      if (updated.length === 0) {
+        setSymbol("");
+      } else if (sym === symbol) {
+        // if we removed primary, pick the last remaining as new primary
+        setSymbol(updated[updated.length - 1]);
       }
-      return next;
+
+      return updated;
+    });
+
+    // drop cached price + options data for this symbol
+    setSeriesBySymbol((prev) => {
+      const copy = { ...prev };
+      delete copy[sym];
+      return copy;
+    });
+    setOptionsBySymbol((prev) => {
+      const copy = { ...prev };
+      delete copy[sym];
+      return copy;
     });
   }
-
-  // keep visibleSymbols subset of activeSymbols
-  useEffect(() => {
-    setVisibleSymbols((prev) => {
-      const filtered = prev.filter((s) => activeSymbols.includes(s));
-      if (filtered.length === 0 && activeSymbols.length > 0) {
-        return [activeSymbols[activeSymbols.length - 1]];
-      }
-      return filtered;
-    });
-  }, [activeSymbols]);
 
   // ---- LOAD PRICE DATA FOR ALL ACTIVE SYMBOLS ----
   async function loadDataForSymbols(symbols = activeSymbols, d = days) {
@@ -329,8 +315,8 @@ export default function App() {
     }
   }
 
-  // ---- LOAD OPTIONS DATA FOR ALL VISIBLE SYMBOLS ----
-  async function loadOptionsForSymbols(symbols = visibleSymbols) {
+  // ---- LOAD OPTIONS DATA FOR ALL ACTIVE SYMBOLS ----
+  async function loadOptionsForSymbols(symbols = activeSymbols) {
     if (!symbols.length) return;
 
     setOptionsLoading(true);
@@ -363,17 +349,17 @@ export default function App() {
     }
   }
 
-  // initial load of prices
+  // initial + whenever activeSymbols or days change
   useEffect(() => {
     loadDataForSymbols();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
-  // ----- Build combined chart data for visibleSymbols -----
+  // ----- Build combined chart data for all active symbols -----
   const chartData = useMemo(() => {
     const map = new Map();
 
-    visibleSymbols.forEach((sym) => {
+    activeSymbols.forEach((sym) => {
       const series = seriesBySymbol[sym] || [];
       series.forEach((row) => {
         const key = row.ts_utc;
@@ -402,12 +388,12 @@ export default function App() {
     const combined = Array.from(map.values());
     combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
     return combined;
-  }, [visibleSymbols, seriesBySymbol, symbol]);
+  }, [activeSymbols, seriesBySymbol, symbol]);
 
-  // ----- Price table rows: flatten visibleSymbols -----
+  // ----- Price table rows: flatten active symbols -----
   const tableRows = useMemo(() => {
     const rows = [];
-    visibleSymbols.forEach((sym) => {
+    activeSymbols.forEach((sym) => {
       const series = seriesBySymbol[sym] || [];
       series.forEach((row) => {
         rows.push({ ...row, symbol: sym });
@@ -416,19 +402,19 @@ export default function App() {
 
     rows.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
     return rows;
-  }, [visibleSymbols, seriesBySymbol]);
+  }, [activeSymbols, seriesBySymbol]);
 
-  // ----- Options table rows: flatten visibleSymbols -----
+  // ----- Options table rows: flatten active symbols -----
   const optionRows = useMemo(() => {
     const rows = [];
-    visibleSymbols.forEach((sym) => {
+    activeSymbols.forEach((sym) => {
       const opts = optionsBySymbol[sym] || [];
       opts.forEach((o) => {
         rows.push({ symbol: sym, ...o });
       });
     });
     return rows;
-  }, [visibleSymbols, optionsBySymbol]);
+  }, [activeSymbols, optionsBySymbol]);
 
   const latestSeries = seriesBySymbol[symbol] || [];
   const latest = latestSeries.length
@@ -446,21 +432,27 @@ export default function App() {
         <div className="control-group">
           <span className="control-label">Stocks in view (1–5)</span>
           <div className="symbol-chips">
-            {activeSymbols.map((s) => {
-              const isVisible = visibleSymbols.includes(s);
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  className={`symbol-chip ${isVisible ? "active" : ""}`}
-                  onClick={() => handleToggleVisibleSymbol(s)}
-                  onDoubleClick={() => handleSelectSymbol(s)}
-                  title="Click: show/hide on chart & tables • Double-click: set as primary"
-                >
-                  {s}
-                </button>
-              );
-            })}
+            {activeSymbols.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`symbol-chip ${s === symbol ? "active" : ""}`}
+                onClick={() => handleSelectSymbol(s)}
+              >
+                <span>{s}</span>
+                {activeSymbols.length > 1 && (
+                  <span
+                    className="chip-remove"
+                    onClick={(e) => {
+                      e.stopPropagation(); // don't also select
+                      handleRemoveSymbol(s);
+                    }}
+                  >
+                    ×
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -600,7 +592,7 @@ export default function App() {
 
         {/* ==== MULTI-STOCK PRICE CHART ==== */}
         <div className="chart-wrapper">
-          <h2>Price (close) – {visibleSymbols.join(", ")}</h2>
+          <h2>Price (close) – {activeSymbols.join(", ")}</h2>
           <div className="chart-inner">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
@@ -622,8 +614,8 @@ export default function App() {
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
 
-                {/* One Close line per visible symbol */}
-                {visibleSymbols.map((s, idx) => (
+                {/* One Close line per active symbol */}
+                {activeSymbols.map((s, idx) => (
                   <Line
                     key={s}
                     type="monotone"
@@ -697,7 +689,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* ==== PRICE TABLE (visible symbols only) ==== */}
+        {/* ==== PRICE TABLE (active symbols only) ==== */}
         <div className="table-wrapper">
           <h2>Data ({tableRows.length} rows)</h2>
           <div style={{ maxHeight: "400px", overflowY: "auto" }}>
@@ -737,7 +729,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* ==== OPTIONS TABLE (visible symbols only) ==== */}
+        {/* ==== OPTIONS TABLE (active symbols only) ==== */}
         <div className="table-wrapper">
           <h2>Options ({optionRows.length} rows)</h2>
           {optionsLoading && <p>Loading options…</p>}
