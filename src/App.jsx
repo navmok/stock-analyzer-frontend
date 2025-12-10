@@ -447,10 +447,33 @@ export default function App() {
     [symbol]
   );
 
+  // ----- Chart data: merge all active symbols into one timeline -----
+  const chartData = useMemo(() => {
+    if (!activeSymbols.length) return [];
+
+    const map = new Map();
+
+    activeSymbols.forEach((sym) => {
+      const series = seriesBySymbol[sym] || [];
+      series.forEach((row) => {
+        const key = row.timeLabel;
+        if (!map.has(key)) {
+          map.set(key, { timeLabel: key, ts_utc: row.ts_utc });
+        }
+        const entry = map.get(key);
+        entry[`${sym}_close`] = row.close;
+        entry[`${sym}_maWeek`] = row.maWeek;
+        entry[`${sym}_ma1M`] = row.ma1M;
+        entry[`${sym}_ma3M`] = row.ma3M;
+        entry[`${sym}_ma12M`] = row.ma12M;
+        entry[`${sym}_ema`] = row.ema;
+      });
+    });
+
     const combined = Array.from(map.values());
     combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
     return combined;
-  }, [activeSymbols, seriesBySymbol, symbol]);
+  }, [activeSymbols, seriesBySymbol]);
 
   // ----- Price table rows: flatten active symbols -----
   const tableRows = useMemo(() => {
