@@ -375,6 +375,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
+  // INSERT THIS:
+function getESTDateKey(isoTs) {
+  const d = new Date(isoTs);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(d); // "YYYY-MM-DD"
+}
+
   // Format a UTC ISO timestamp into EST (New York) label for the candlestick x-axis
   function formatESTLabel(isoTs) {
     const d = new Date(isoTs);
