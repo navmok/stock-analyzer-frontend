@@ -110,42 +110,45 @@ const CustomTooltip = ({
 }) => {
   if (!active || !payload || !payload.length) return null;
 
-  // the full combined data row for this x-position
+  // full data row for the hovered x-axis key
   const row = payload[0]?.payload || {};
 
   return (
     <div
       style={{
         background: "white",
-        padding: "10px",
+        padding: "12px",
         border: "1px solid #ccc",
-        borderRadius: "4px",
+        borderRadius: "6px",
         boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
         color: "black",
+        maxWidth: "260px",
       }}
     >
-      <p style={{ margin: "2px 0", fontWeight: "bold" }}>{label}</p>
+      {/* Date label */}
+      <p style={{ margin: "4px 0", fontWeight: "bold" }}>{label}</p>
 
-      {/* Close prices (whatever lines are in payload) */}
+      {/* CLOSE PRICES ONLY */}
       {payload.map((entry) => (
         <p key={entry.dataKey} style={{ margin: "2px 0" }}>
           {entry.name}: <strong>${entry.value.toFixed(2)}</strong>
         </p>
       ))}
 
-      {/* Moving averages per visible symbol */}
-      <hr />
-      <p style={{ margin: "2px 0", fontWeight: "bold" }}>Moving averages</p>
+      <hr style={{ margin: "8px 0" }} />
+
+      {/* CLEAN MOVING AVERAGE SUMMARY */}
+      <p style={{ margin: "4px 0", fontWeight: "bold" }}>Moving averages</p>
+
       {activeSymbols.map((sym) => {
         const parts = [];
-
-        const w = row[`${sym}_maWeek`];
+        const wk = row[`${sym}_maWeek`];
         const m1 = row[`${sym}_ma1M`];
         const m3 = row[`${sym}_ma3M`];
         const y1 = row[`${sym}_ma12M`];
         const ema = row[`${sym}_ema`];
 
-        if (showWeek && w != null) parts.push(`Wk: ${w.toFixed(2)}`);
+        if (showWeek && wk != null) parts.push(`Wk: ${wk.toFixed(2)}`);
         if (show1M && m1 != null) parts.push(`1M: ${m1.toFixed(2)}`);
         if (show3M && m3 != null) parts.push(`3M: ${m3.toFixed(2)}`);
         if (show12M && y1 != null) parts.push(`12M: ${y1.toFixed(2)}`);
@@ -155,7 +158,7 @@ const CustomTooltip = ({
 
         return (
           <p key={sym} style={{ margin: "2px 0" }}>
-            {sym}: <strong>{parts.join("   ·   ")}</strong>
+            {sym}: <strong>{parts.join(" · ")}</strong>
           </p>
         );
       })}
@@ -619,9 +622,9 @@ export default function App() {
                   tickFormatter={(value) => `$${value.toFixed(0)}`}
                 />
                 <Tooltip
-                  content={(tooltipProps) => (
+                  content={(tp) => (
                     <CustomTooltip
-                      {...tooltipProps}
+                      {...tp}
                       activeSymbols={activeSymbols}
                       showWeek={showWeek}
                       show1M={show1M}
@@ -630,7 +633,7 @@ export default function App() {
                       showEma={showEma}
                     />
                   )}
-                />
+                  />
                 <Legend />
 
                 {/* One Close line per active symbol */}
