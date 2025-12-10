@@ -44,13 +44,13 @@ const MAX_ACTIVE = 5;
 
 // ---- helper to compute moving averages on 'close' ----
 function addMovingAverages(rows) {
-  // Use trading days, not calendar days
-  const WEEK = 5;    // ≈ 1 trading week
-  const ONE_M = 21;  // ≈ 1 trading month
-  const THREE_M = 63; // ≈ 3 trading months
-  const TWELVE_M = 252; // ≈ 1 trading year
+  // Use trading-day style windows
+  const WEEK = 5;      // ~1 trading week
+  const ONE_M = 21;    // ~1 trading month
+  const THREE_M = 63;  // ~3 trading months
+  const TWELVE_M = 252; // ~1 trading year (max window)
 
-  const EMA_PERIOD = 20; // 20-day EMA (unchanged)
+  const EMA_PERIOD = 20;
   const alpha = 2 / (EMA_PERIOD + 1);
 
   let sumWeek = 0,
@@ -63,6 +63,7 @@ function addMovingAverages(rows) {
   return rows.map((row, i) => {
     const close = row.close;
 
+    // accumulate
     sumWeek += close;
     sum1 += close;
     sum3 += close;
@@ -73,11 +74,20 @@ function addMovingAverages(rows) {
     if (i >= THREE_M) sum3 -= rows[i - THREE_M].close;
     if (i >= TWELVE_M) sum12 -= rows[i - TWELVE_M].close;
 
-    const maWeek = i >= WEEK - 1 ? sumWeek / WEEK : null;
-    const ma1M = i >= ONE_M - 1 ? sum1 / ONE_M : null;
-    const ma3M = i >= THREE_M - 1 ? sum3 / THREE_M : null;
-    const ma12M = i >= TWELVE_M - 1 ? sum12 / TWELVE_M : null;
+    // window lengths actually available at this index
+    const lenWeek = Math.min(i + 1, WEEK);
+    const len1M = Math.min(i + 1, ONE_M);
+    const len3M = Math.min(i + 1, THREE_M);
+    const len12M = Math.min(i + 1, TWELVE_M); // up to 252 days, or fewer if that's all we have
 
+    const maWeek = lenWeek >= WEEK ? sumWeek / lenWeek : null;
+    const ma1M = len1M >= ONE_M ? sum1 / len1M : null;
+    const ma3M = len3M >= THREE_M ? sum3 / len3M : null;
+
+    // 🔹 Year MA: start showing once we have a decent window (e.g., 60+ days)
+    const ma12M = len12M >= 60 ? sum12 / len12M : null;
+
+    // EMA
     if (ema === null) {
       ema = close;
     } else {
