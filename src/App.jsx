@@ -803,21 +803,23 @@ const { callRows, putRows } = useMemo(() => {
           </div>
         </div>
 
-          {/* ==== OPTIONS TABLES (Calls & Puts) ==== */}
-          <div className="table-wrapper">
-            <h2>
-              Options – Calls & Puts{" "}
-              <span style={{ fontSize: "0.9rem", fontWeight: "normal" }}>
-                (Calls: {callRows.length} · Puts: {putRows.length})
-              </span>
-            </h2>
+        {/* ==== OPTIONS TABLES (Calls & Puts) ==== */}
+        <div className="table-wrapper">
+          <h2>
+            Options – Calls &amp; Puts{" "}
+            <span style={{ fontSize: "0.9rem", fontWeight: "normal" }}>
+              (Calls: {callRows.length} · Puts: {putRows.length})
+            </span>
+          </h2>
 
-            {optionsLoading && <p>Loading options…</p>}
-            {!optionsLoading && callRows.length === 0 && putRows.length === 0 && (
-              <p>No options loaded.</p>
-            )}
+          {optionsLoading && <p>Loading options…</p>}
 
-            {!optionsLoading && (callRows.length > 0 || putRows.length > 0) && (
+          {!optionsLoading &&
+            callRows.length === 0 &&
+            putRows.length === 0 && <p>No options loaded.</p>}
+
+          {!optionsLoading &&
+            (callRows.length > 0 || putRows.length > 0) && (
               <div
                 style={{
                   display: "grid",
@@ -906,4 +908,8 @@ const { callRows, putRows } = useMemo(() => {
                 </div>
               </div>
             )}
-          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
