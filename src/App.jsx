@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import Chart from "react-apexcharts";  // ⬅️ NEW
 
 const API_BASE =
   process.env.NODE_ENV === "production"
@@ -374,43 +375,77 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
-  // ----- Build combined chart data for all active symbols -----
-  const chartData = useMemo(() => {
-    const map = new Map();
+ // ----- Candlestick series for the PRIMARY symbol -----
+  const candleSeries = useMemo(() => {
+    if (!symbol) return [];
 
-    activeSymbols.forEach((sym) => {
-      const series = seriesBySymbol[sym] || [];
-      series.forEach((row) => {
-        const key = row.ts_utc;
-        let base = map.get(key);
-        if (!base) {
-          base = {
-            ts_utc: row.ts_utc,
-            timeLabel: row.timeLabel,
-          };
-          map.set(key, base);
-        }
+    const series = seriesBySymbol[symbol] || [];
+    if (!series.length) return [];
 
-        // close per symbol
-        base[`${sym}_close`] = row.close;
+    const data = series.map((row) => ({
+      x: new Date(row.ts_utc), // datetime on x-axis
+      y: [row.open, row.high, row.low, row.close], // [O, H, L, C]
+    }));
 
-        // per-symbol MAs/EMA
-        base[`${sym}_maWeek`] = row.maWeek;
-        base[`${sym}_ma1M`] = row.ma1M;
-        base[`${sym}_ma3M`] = row.ma3M;
-        base[`${sym}_ma12M`] = row.ma12M;
-        base[`${sym}_ema`] = row.ema;
+    return [
+      {
+        name: symbol,
+        data,
+      },
+    ];
+  }, [seriesBySymbol, symbol]);
 
-        // keep generic MAs/EMA for the primary symbol (for tooltip)
-        if (sym === symbol) {
-          base.maWeek = row.maWeek;
-          base.ma1M = row.ma1M;
-          base.ma3M = row.ma3M;
-          base.ma12M = row.ma12M;
-          base.ema = row.ema;
-        }
-      });
-    });
+  // ----- Candlestick chart options -----
+  const candleOptions = useMemo(
+    () => ({
+      chart: {
+        type: "candlestick",
+        toolbar: {
+          show: true,
+        },
+        background: "transparent",
+      },
+      title: {
+        text: `${symbol || ""} Candlestick`,
+        align: "left",
+        style: {
+          fontSize: "14px",
+          fontWeight: 500,
+        },
+      },
+      xaxis: {
+        type: "datetime",
+        labels: {
+          style: {
+            fontSize: "10px",
+          },
+        },
+      },
+      yaxis: {
+        tooltip: {
+          enabled: true,
+        },
+        labels: {
+          formatter: (val) => `$${val.toFixed(2)}`,
+        },
+      },
+      plotOptions: {
+        candlestick: {
+          colors: {
+            upward: "#22c55e",
+            downward: "#ef4444",
+          },
+        },
+      },
+      tooltip: {
+        shared: true,
+        x: {
+          format: "MM/dd HH:mm",
+        },
+      },
+    }),
+    [symbol]
+  );
 
     const combined = Array.from(map.values());
     combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
@@ -621,7 +656,7 @@ const { callRows, putRows } = useMemo(() => {
         </div>
       </section>
 
-      <main>
+       <main>
         {latest && (
           <div className="latest">
             <h2>Latest</h2>
@@ -632,6 +667,24 @@ const { callRows, putRows } = useMemo(() => {
             </p>
           </div>
         )}
+
+        {/* ==== NEW: CANDLESTICK CHART FOR PRIMARY SYMBOL ==== */}
+        <div className="chart-wrapper">
+          <h2>{symbol ? `${symbol} Candlestick` : "Candlestick"}</h2>
+          <div className="chart-inner">
+            {candleSeries.length && candleSeries[0].data.length ? (
+              <Chart
+                options={candleOptions}
+                series={candleSeries}
+                type="candlestick"
+                height={350}
+                width="100%"
+              />
+            ) : (
+              <p>No candlestick data for the selected symbol.</p>
+            )}
+          </div>
+        </div>
 
         {/* ==== MULTI-STOCK PRICE CHART ==== */}
         <div className="chart-wrapper">
