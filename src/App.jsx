@@ -44,11 +44,13 @@ const MAX_ACTIVE = 5;
 
 // ---- helper to compute moving averages on 'close' ----
 function addMovingAverages(rows) {
-  const WEEK = 7; // weekly MA
-  const ONE_M = 30; // 1 month ≈ 30 days
-  const THREE_M = 90; // 3 months ≈ 90 days
-  const TWELVE_M = 365; // 12 months ≈ 365 days
-  const EMA_PERIOD = 20; // 20-day EMA (common default)
+  // Use trading days, not calendar days
+  const WEEK = 5;    // ≈ 1 trading week
+  const ONE_M = 21;  // ≈ 1 trading month
+  const THREE_M = 63; // ≈ 3 trading months
+  const TWELVE_M = 252; // ≈ 1 trading year
+
+  const EMA_PERIOD = 20; // 20-day EMA (unchanged)
   const alpha = 2 / (EMA_PERIOD + 1);
 
   let sumWeek = 0,
@@ -61,7 +63,6 @@ function addMovingAverages(rows) {
   return rows.map((row, i) => {
     const close = row.close;
 
-    // running sums for simple MAs
     sumWeek += close;
     sum1 += close;
     sum3 += close;
@@ -77,9 +78,8 @@ function addMovingAverages(rows) {
     const ma3M = i >= THREE_M - 1 ? sum3 / THREE_M : null;
     const ma12M = i >= TWELVE_M - 1 ? sum12 / TWELVE_M : null;
 
-    // EMA (20-day)
     if (ema === null) {
-      ema = close; // seed with first value
+      ema = close;
     } else {
       ema = alpha * close + (1 - alpha) * ema;
     }
