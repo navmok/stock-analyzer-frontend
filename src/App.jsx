@@ -96,11 +96,22 @@ function addMovingAverages(rows) {
   });
 }
 
-// Multi-stock tooltip: all lines + MAs for primary symbol (if present)
-const CustomTooltip = ({ active, payload, label }) => {
+// Multi-stock tooltip: all lines + MAs for ALL visible symbols
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+  activeSymbols,
+  showWeek,
+  show1M,
+  show3M,
+  show12M,
+  showEma,
+}) => {
   if (!active || !payload || !payload.length) return null;
 
-  const primaryPayload = payload[0]?.payload || {};
+  // the full combined data row for this x-position
+  const row = payload[0]?.payload || {};
 
   return (
     <div
@@ -115,51 +126,39 @@ const CustomTooltip = ({ active, payload, label }) => {
     >
       <p style={{ margin: "2px 0", fontWeight: "bold" }}>{label}</p>
 
+      {/* Close prices (whatever lines are in payload) */}
       {payload.map((entry) => (
         <p key={entry.dataKey} style={{ margin: "2px 0" }}>
           {entry.name}: <strong>${entry.value.toFixed(2)}</strong>
         </p>
       ))}
 
-      {(primaryPayload.maWeek != null ||
-        primaryPayload.ma1M != null ||
-        primaryPayload.ma3M != null ||
-        primaryPayload.ma12M != null ||
-        primaryPayload.ema != null) && (
-        <>
-          <hr />
-          {primaryPayload.maWeek != null && (
-            <p style={{ margin: "2px 0" }}>
-              Weekly MA (primary):{" "}
-              <strong>${primaryPayload.maWeek.toFixed(2)}</strong>
-            </p>
-          )}
-          {primaryPayload.ma1M != null && (
-            <p style={{ margin: "2px 0" }}>
-              Month MA (primary):{" "}
-              <strong>${primaryPayload.ma1M.toFixed(2)}</strong>
-            </p>
-          )}
-          {primaryPayload.ma3M != null && (
-            <p style={{ margin: "2px 0" }}>
-              Quarter MA (primary):{" "}
-              <strong>${primaryPayload.ma3M.toFixed(2)}</strong>
-            </p>
-          )}
-          {primaryPayload.ma12M != null && (
-            <p style={{ margin: "2px 0" }}>
-              Year MA (primary):{" "}
-              <strong>${primaryPayload.ma12M.toFixed(2)}</strong>
-            </p>
-          )}
-          {primaryPayload.ema != null && (
-            <p style={{ margin: "2px 0" }}>
-              EMA (20d, primary):{" "}
-              <strong>${primaryPayload.ema.toFixed(2)}</strong>
-            </p>
-          )}
-        </>
-      )}
+      {/* Moving averages per visible symbol */}
+      <hr />
+      <p style={{ margin: "2px 0", fontWeight: "bold" }}>Moving averages</p>
+      {activeSymbols.map((sym) => {
+        const parts = [];
+
+        const w = row[`${sym}_maWeek`];
+        const m1 = row[`${sym}_ma1M`];
+        const m3 = row[`${sym}_ma3M`];
+        const y1 = row[`${sym}_ma12M`];
+        const ema = row[`${sym}_ema`];
+
+        if (showWeek && w != null) parts.push(`Wk: ${w.toFixed(2)}`);
+        if (show1M && m1 != null) parts.push(`1M: ${m1.toFixed(2)}`);
+        if (show3M && m3 != null) parts.push(`3M: ${m3.toFixed(2)}`);
+        if (show12M && y1 != null) parts.push(`12M: ${y1.toFixed(2)}`);
+        if (showEma && ema != null) parts.push(`EMA: ${ema.toFixed(2)}`);
+
+        if (!parts.length) return null;
+
+        return (
+          <p key={sym} style={{ margin: "2px 0" }}>
+            {sym}: <strong>{parts.join("   ·   ")}</strong>
+          </p>
+        );
+      })}
     </div>
   );
 };
@@ -619,7 +618,19 @@ export default function App() {
                   domain={["auto", "auto"]}
                   tickFormatter={(value) => `$${value.toFixed(0)}`}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip
+                  content={(tooltipProps) => (
+                    <CustomTooltip
+                      {...tooltipProps}
+                      activeSymbols={activeSymbols}
+                      showWeek={showWeek}
+                      show1M={show1M}
+                      show3M={show3M}
+                      show12M={show12M}
+                      showEma={showEma}
+                    />
+                  )}
+                />
                 <Legend />
 
                 {/* One Close line per active symbol */}
