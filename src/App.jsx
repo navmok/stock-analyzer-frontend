@@ -372,9 +372,17 @@ export default function App() {
           map.set(key, base);
         }
 
+        // close per symbol
         base[`${sym}_close`] = row.close;
 
-        // copy MAs/EMA from primary symbol
+        // per-symbol MAs/EMA
+        base[`${sym}_maWeek`] = row.maWeek;
+        base[`${sym}_ma1M`] = row.ma1M;
+        base[`${sym}_ma3M`] = row.ma3M;
+        base[`${sym}_ma12M`] = row.ma12M;
+        base[`${sym}_ema`] = row.ema;
+
+        // keep generic MAs/EMA for the primary symbol (for tooltip)
         if (sym === symbol) {
           base.maWeek = row.maWeek;
           base.ma1M = row.ma1M;
@@ -513,7 +521,7 @@ export default function App() {
         )}
       </section>
 
-      {/* Moving average toggles (primary symbol only) */}
+      {/* Moving average toggles */}
       <section className="ma-toggles">
         <div className="ma-toggle-group">
           <label className="ma-toggle">
@@ -628,62 +636,81 @@ export default function App() {
                   />
                 ))}
 
-                {/* MAs/EMA for primary symbol only */}
-                {showWeek && (
-                  <Line
-                    type="monotone"
-                    dataKey="maWeek"
-                    name="Weekly MA (primary)"
-                    stroke="#a855f7"
-                    dot={false}
-                    strokeWidth={1.5}
-                    connectNulls
-                  />
-                )}
-                {show1M && (
-                  <Line
-                    type="monotone"
-                    dataKey="ma1M"
-                    name="Month MA (primary)"
-                    stroke="#22c55e"
-                    dot={false}
-                    strokeWidth={1.5}
-                    connectNulls
-                  />
-                )}
-                {show3M && (
-                  <Line
-                    type="monotone"
-                    dataKey="ma3M"
-                    name="Quarter MA (primary)"
-                    stroke="#facc15"
-                    dot={false}
-                    strokeWidth={1.5}
-                    connectNulls
-                  />
-                )}
-                {show12M && (
-                  <Line
-                    type="monotone"
-                    dataKey="ma12M"
-                    name="Year MA (primary)"
-                    stroke="#f97316"
-                    dot={false}
-                    strokeWidth={1.5}
-                    connectNulls
-                  />
-                )}
-                {showEma && (
-                  <Line
-                    type="monotone"
-                    dataKey="ema"
-                    name="EMA (20d, primary)"
-                    stroke="#e11d48"
-                    dot={false}
-                    strokeWidth={1.5}
-                    connectNulls
-                  />
-                )}
+                {/* MAs/EMA for all active symbols */}
+                {showWeek &&
+                  activeSymbols.map((s, idx) => (
+                    <Line
+                      key={`${s}_maWeek`}
+                      type="monotone"
+                      dataKey={`${s}_maWeek`}
+                      name={`${s} Weekly MA`}
+                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                      strokeDasharray="4 2"
+                      dot={false}
+                      strokeWidth={1.2}
+                      connectNulls
+                    />
+                  ))}
+
+                {show1M &&
+                  activeSymbols.map((s, idx) => (
+                    <Line
+                      key={`${s}_ma1M`}
+                      type="monotone"
+                      dataKey={`${s}_ma1M`}
+                      name={`${s} Month MA`}
+                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                      strokeDasharray="4 2"
+                      dot={false}
+                      strokeWidth={1.2}
+                      connectNulls
+                    />
+                  ))}
+
+                {show3M &&
+                  activeSymbols.map((s, idx) => (
+                    <Line
+                      key={`${s}_ma3M`}
+                      type="monotone"
+                      dataKey={`${s}_ma3M`}
+                      name={`${s} Quarter MA`}
+                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                      strokeDasharray="4 2"
+                      dot={false}
+                      strokeWidth={1.2}
+                      connectNulls
+                    />
+                  ))}
+
+                {show12M &&
+                  activeSymbols.map((s, idx) => (
+                    <Line
+                      key={`${s}_ma12M`}
+                      type="monotone"
+                      dataKey={`${s}_ma12M`}
+                      name={`${s} Year MA`}
+                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                      strokeDasharray="4 2"
+                      dot={false}
+                      strokeWidth={1.2}
+                      connectNulls
+                    />
+                  ))}
+
+                {showEma &&
+                  activeSymbols.map((s, idx) => (
+                    <Line
+                      key={`${s}_ema`}
+                      type="monotone"
+                      dataKey={`${s}_ema`}
+                      name={`${s} EMA (20d)`}
+                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                      strokeDasharray="4 2"
+                      dot={false}
+                      strokeWidth={1.2}
+                      connectNulls
+                    />
+                  ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
