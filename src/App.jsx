@@ -110,8 +110,15 @@ const CustomTooltip = ({
 }) => {
   if (!active || !payload || !payload.length) return null;
 
-  // full data row for the hovered x-axis key
+  // full data row for this x position
   const row = payload[0]?.payload || {};
+
+  // 🔹 NEW: only keep Close series at the top
+  const closeEntries = payload.filter(
+    (entry) =>
+      typeof entry.dataKey === "string" &&
+      entry.dataKey.endsWith("_close") // e.g. "RIOT_close"
+  );
 
   return (
     <div
@@ -128,8 +135,8 @@ const CustomTooltip = ({
       {/* Date label */}
       <p style={{ margin: "4px 0", fontWeight: "bold" }}>{label}</p>
 
-      {/* CLOSE PRICES ONLY */}
-      {payload.map((entry) => (
+      {/* 🔹 TOP: CLOSE PRICES ONLY */}
+      {closeEntries.map((entry) => (
         <p key={entry.dataKey} style={{ margin: "2px 0" }}>
           {entry.name}: <strong>${entry.value.toFixed(2)}</strong>
         </p>
@@ -137,7 +144,7 @@ const CustomTooltip = ({
 
       <hr style={{ margin: "8px 0" }} />
 
-      {/* CLEAN MOVING AVERAGE SUMMARY */}
+      {/* BOTTOM: CLEAN MOVING AVERAGE SUMMARY (unchanged) */}
       <p style={{ margin: "4px 0", fontWeight: "bold" }}>Moving averages</p>
 
       {activeSymbols.map((sym) => {
