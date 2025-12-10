@@ -375,7 +375,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
- // ----- Candlestick series for the PRIMARY symbol -----
+  // Format a UTC ISO timestamp into EST (New York) label for the candlestick x-axis
+  function formatESTLabel(isoTs) {
+    const d = new Date(isoTs);
+    if (Number.isNaN(d.getTime())) return isoTs;
+
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  }
+
+  // ----- Candlestick series for the PRIMARY symbol (EST labels, no gaps) -----
   const candleSeries = useMemo(() => {
     if (!symbol) return [];
 
@@ -383,8 +397,9 @@ export default function App() {
     if (!series.length) return [];
 
     const data = series.map((row) => ({
-      x: new Date(row.ts_utc), // datetime on x-axis
-      y: [row.open, row.high, row.low, row.close], // [O, H, L, C]
+      // x is now a CATEGORY label, not a true datetime → no gaps between days
+      x: formatESTLabel(row.ts_utc),
+      y: [row.open, row.high, row.low, row.close],
     }));
 
     return [
@@ -396,56 +411,59 @@ export default function App() {
   }, [seriesBySymbol, symbol]);
 
   // ----- Candlestick chart options -----
-  const candleOptions = useMemo(
-    () => ({
-      chart: {
-        type: "candlestick",
-        toolbar: {
-          show: true,
-        },
-        background: "transparent",
+const candleOptions = useMemo(
+  () => ({
+    chart: {
+      type: "candlestick",
+      toolbar: {
+        show: true,
       },
-      title: {
-        text: `${symbol || ""} Candlestick`,
-        align: "left",
+      background: "transparent",
+    },
+    title: {
+      text: symbol ? `${symbol} Candlestick` : "Candlestick",
+      align: "left",
+      style: {
+        fontSize: "14px",
+        fontWeight: 500,
+      },
+    },
+    // ⚠️ IMPORTANT: use category axis → removes gaps where there is no data
+    xaxis: {
+      type: "category",
+      tickAmount: 8, // you can tweak this
+      labels: {
+        rotate: -45,
+        trim: true,
+        hideOverlappingLabels: true,
         style: {
-          fontSize: "14px",
-          fontWeight: 500,
+          fontSize: "10px",
         },
       },
-      xaxis: {
-        type: "datetime",
-        labels: {
-          style: {
-            fontSize: "10px",
-          },
-        },
-      },
-      yaxis: {
-        tooltip: {
-          enabled: true,
-        },
-        labels: {
-          formatter: (val) => `$${val.toFixed(2)}`,
-        },
-      },
-      plotOptions: {
-        candlestick: {
-          colors: {
-            upward: "#22c55e",
-            downward: "#ef4444",
-          },
-        },
-      },
+    },
+    yaxis: {
       tooltip: {
-        shared: true,
-        x: {
-          format: "MM/dd HH:mm",
+        enabled: true,
+      },
+      labels: {
+        formatter: (val) => `$${val.toFixed(2)}`,
+      },
+    },
+    plotOptions: {
+      candlestick: {
+        colors: {
+          upward: "#22c55e",
+          downward: "#ef4444",
         },
       },
-    }),
-    [symbol]
-  );
+    },
+    tooltip: {
+      shared: true,
+      // Tooltip x-value is the same EST label we used in data.x
+    },
+  }),
+  [symbol]
+);
 
   // ----- Chart data: merge all active symbols into one timeline -----
   const chartData = useMemo(() => {
