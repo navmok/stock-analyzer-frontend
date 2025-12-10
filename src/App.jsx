@@ -432,16 +432,32 @@ export default function App() {
   }, [activeSymbols, seriesBySymbol]);
 
   // ----- Options table rows: flatten active symbols -----
-  const optionRows = useMemo(() => {
-    const rows = [];
-    activeSymbols.forEach((sym) => {
-      const opts = optionsBySymbol[sym] || [];
-      opts.forEach((o) => {
-        rows.push({ symbol: sym, ...o });
-      });
+const { callRows, putRows } = useMemo(() => {
+  const rows = [];
+  activeSymbols.forEach((sym) => {
+    const opts = optionsBySymbol[sym] || [];
+    opts.forEach((o) => {
+      rows.push({ symbol: sym, ...o });
     });
-    return rows;
-  }, [activeSymbols, optionsBySymbol]);
+  });
+
+  const calls = [];
+  const puts = [];
+
+  rows.forEach((r) => {
+    const t = (r.type || "").toString().toUpperCase();
+    if (t === "CALL" || t === "C") {
+      calls.push(r);
+    } else if (t === "PUT" || t === "P") {
+      puts.push(r);
+    } else {
+      // if unknown, you can choose where to put; default to calls
+      calls.push(r);
+    }
+  });
+
+  return { callRows: calls, putRows: puts };
+}, [activeSymbols, optionsBySymbol]);
 
   const latestSeries = seriesBySymbol[symbol] || [];
   const latest = latestSeries.length
@@ -787,56 +803,107 @@ export default function App() {
           </div>
         </div>
 
-        {/* ==== OPTIONS TABLE (active symbols only) ==== */}
-        <div className="table-wrapper">
-          <h2>Options ({optionRows.length} rows)</h2>
-          {optionsLoading && <p>Loading options…</p>}
-          {!optionsLoading && !optionRows.length && (
-            <p>No options loaded.</p>
-          )}
+          {/* ==== OPTIONS TABLES (Calls & Puts) ==== */}
+          <div className="table-wrapper">
+            <h2>
+              Options – Calls & Puts{" "}
+              <span style={{ fontSize: "0.9rem", fontWeight: "normal" }}>
+                (Calls: {callRows.length} · Puts: {putRows.length})
+              </span>
+            </h2>
 
-          {optionRows.length > 0 && (
-            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Symbol</th>
-                    <th>Contract</th>
-                    <th>Type</th>
-                    <th>Strike</th>
-                    <th>Expiry</th>
-                    <th>Last</th>
-                    <th>Bid</th>
-                    <th>Ask</th>
-                    <th>Volume</th>
-                    <th>Open Int</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {optionRows.map((o, idx) => (
-                    <tr key={idx}>
-                      <td>{o.symbol}</td>
-                      <td>{o.contractSymbol}</td>
-                      <td>{o.type}</td>
-                      <td>{o.strike}</td>
-                      <td>
-                        {o.expiration
-                          ? new Date(o.expiration).toLocaleDateString()
-                          : ""}
-                      </td>
-                      <td>{o.lastPrice}</td>
-                      <td>{o.bid}</td>
-                      <td>{o.ask}</td>
-                      <td>{o.volume}</td>
-                      <td>{o.openInterest}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
+            {optionsLoading && <p>Loading options…</p>}
+            {!optionsLoading && callRows.length === 0 && putRows.length === 0 && (
+              <p>No options loaded.</p>
+            )}
+
+            {!optionsLoading && (callRows.length > 0 || putRows.length > 0) && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px",
+                  maxHeight: "400px",
+                  overflowY: "auto",
+                }}
+              >
+                {/* Calls */}
+                <div>
+                  <h3>Calls ({callRows.length})</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Symbol</th>
+                        <th>Contract</th>
+                        <th>Strike</th>
+                        <th>Expiry</th>
+                        <th>Last</th>
+                        <th>Bid</th>
+                        <th>Ask</th>
+                        <th>Volume</th>
+                        <th>Open Int</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {callRows.map((o, idx) => (
+                        <tr key={idx}>
+                          <td>{o.symbol}</td>
+                          <td>{o.contractSymbol}</td>
+                          <td>{o.strike}</td>
+                          <td>
+                            {o.expiration
+                              ? new Date(o.expiration).toLocaleDateString()
+                              : ""}
+                          </td>
+                          <td>{o.lastPrice}</td>
+                          <td>{o.bid}</td>
+                          <td>{o.ask}</td>
+                          <td>{o.volume}</td>
+                          <td>{o.openInterest}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Puts */}
+                <div>
+                  <h3>Puts ({putRows.length})</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Symbol</th>
+                        <th>Contract</th>
+                        <th>Strike</th>
+                        <th>Expiry</th>
+                        <th>Last</th>
+                        <th>Bid</th>
+                        <th>Ask</th>
+                        <th>Volume</th>
+                        <th>Open Int</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {putRows.map((o, idx) => (
+                        <tr key={idx}>
+                          <td>{o.symbol}</td>
+                          <td>{o.contractSymbol}</td>
+                          <td>{o.strike}</td>
+                          <td>
+                            {o.expiration
+                              ? new Date(o.expiration).toLocaleDateString()
+                              : ""}
+                          </td>
+                          <td>{o.lastPrice}</td>
+                          <td>{o.bid}</td>
+                          <td>{o.ask}</td>
+                          <td>{o.volume}</td>
+                          <td>{o.openInterest}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
