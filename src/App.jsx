@@ -374,21 +374,19 @@ export default function App() {
 
         base[`${sym}_close`] = row.close;
 
-        // copy MAs/EMA from primary symbol
-        if (sym === symbol) {
-          base.maWeek = row.maWeek;
-          base.ma1M = row.ma1M;
-          base.ma3M = row.ma3M;
-          base.ma12M = row.ma12M;
-          base.ema = row.ema;
-        }
+        // copy MAs/EMA for all symbols
+        base[`${sym}_maWeek`] = row.maWeek;
+        base[`${sym}_ma1M`] = row.ma1M;
+        base[`${sym}_ma3M`] = row.ma3M;
+        base[`${sym}_ma12M`] = row.ma12M;
+        base[`${sym}_ema`] = row.ema;
       });
     });
 
     const combined = Array.from(map.values());
     combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
     return combined;
-  }, [activeSymbols, seriesBySymbol, symbol]);
+  }, [activeSymbols, seriesBySymbol]);
 
   // ----- Price table rows: flatten active symbols -----
   const tableRows = useMemo(() => {
@@ -628,62 +626,72 @@ export default function App() {
                   />
                 ))}
 
-                {/* MAs/EMA for primary symbol only */}
-                {showWeek && (
+                {/* MAs/EMA for all active symbols */}
+                {showWeek && activeSymbols.map((s, idx) => (
                   <Line
+                    key={`${s}-maWeek`}
                     type="monotone"
-                    dataKey="maWeek"
-                    name="Weekly MA (primary)"
-                    stroke="#a855f7"
+                    dataKey={`${s}_maWeek`}
+                    name={`${s} Weekly MA`}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
                     dot={false}
                     strokeWidth={1.5}
                     connectNulls
+                    strokeDasharray="5 5"
                   />
-                )}
-                {show1M && (
+                ))}
+                {show1M && activeSymbols.map((s, idx) => (
                   <Line
+                    key={`${s}-ma1M`}
                     type="monotone"
-                    dataKey="ma1M"
-                    name="Month MA (primary)"
-                    stroke="#22c55e"
+                    dataKey={`${s}_ma1M`}
+                    name={`${s} Month MA`}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
                     dot={false}
                     strokeWidth={1.5}
                     connectNulls
+                    strokeDasharray="5 5"
                   />
-                )}
-                {show3M && (
+                ))}
+                {show3M && activeSymbols.map((s, idx) => (
                   <Line
+                    key={`${s}-ma3M`}
                     type="monotone"
-                    dataKey="ma3M"
-                    name="Quarter MA (primary)"
-                    stroke="#facc15"
+                    dataKey={`${s}_ma3M`}
+                    name={`${s} Quarter MA`}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
                     dot={false}
                     strokeWidth={1.5}
                     connectNulls
+                    strokeDasharray="5 5"
                   />
-                )}
-                {show12M && (
+                ))}
+                {show12M && activeSymbols.map((s, idx) => (
                   <Line
+                    key={`${s}-ma12M`}
                     type="monotone"
-                    dataKey="ma12M"
-                    name="Year MA (primary)"
-                    stroke="#f97316"
+                    dataKey={`${s}_ma12M`}
+                    name={`${s} Year MA`}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
                     dot={false}
                     strokeWidth={1.5}
                     connectNulls
+                    strokeDasharray="5 5"
                   />
-                )}
-                {showEma && (
+                ))}
+                {showEma && activeSymbols.map((s, idx) => (
                   <Line
+                    key={`${s}-ema`}
                     type="monotone"
-                    dataKey="ema"
-                    name="EMA (20d, primary)"
-                    stroke="#e11d48"
+                    dataKey={`${s}_ema`}
+                    name={`${s} EMA (20d)`}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
                     dot={false}
                     strokeWidth={1.5}
                     connectNulls
+                    strokeDasharray="5 5"
                   />
-                )}
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
