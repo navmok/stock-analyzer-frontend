@@ -76,15 +76,6 @@ function addMovingAverages(rows) {
 
   let ema = null;
 
-  function computeStdDev(arr) {
-  if (!arr.length) return null;
-  const mean = arr.reduce((acc, v) => acc + v, 0) / arr.length;
-  const variance =
-    arr.reduce((acc, v) => acc + (v - mean) * (v - mean), 0) /
-    arr.length;
-    return Math.sqrt(variance);
- }
-
   return rows.map((row, i) => {
     const close = row.close;
 
@@ -243,6 +234,12 @@ export default function App() {
   const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
 
   const [days, setDays] = useState(365);
+  // Candlestick drill-down (Year → Month → Week → Day → Minute)
+  const [candleDrillLevel, setCandleDrillLevel] = useState("year");
+  const [drillYear, setDrillYear] = useState(null);
+  const [drillMonthKey, setDrillMonthKey] = useState(null);
+  const [drillWeekKey, setDrillWeekKey] = useState(null);
+  const [drillDayKey, setDrillDayKey] = useState(null);
 
   // price data: symbol -> [rows with MAs]
   const [seriesBySymbol, setSeriesBySymbol] = useState({});
@@ -426,25 +423,19 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
+  // Reset candlestick drill when user changes symbol or days
+useEffect(() => {
+  setCandleDrillLevel("year");
+  setDrillYear(null);
+  setDrillMonthKey(null);
+  setDrillWeekKey(null);
+  setDrillDayKey(null);
+}, [symbol, days]);
+
   // Round numeric values to 2 decimals
 function round2(v) {
   if (v == null || isNaN(v)) return null;
   return Number(v.toFixed(2));
-}
-
-  // INSERT THIS:
-function getESTDateKey(isoTs) {
-  const d = new Date(isoTs);
-  if (Number.isNaN(d.getTime())) return null;
-
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  return formatter.format(d); // "YYYY-MM-DD"
 }
 
   // Format a UTC ISO timestamp into EST (New York) label for the candlestick x-axis
@@ -461,31 +452,132 @@ function getESTDateKey(isoTs) {
     }).format(d);
   }
 
-  // ----- Candlestick series for the PRIMARY symbol (EST labels, no gaps) -----
-  const candleSeries = useMemo(() => {
-    if (!symbol) return [];
+  // ISO week number (for Year → Month → Week drill)
+function getISOWeekNumber(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+  return weekNo;
+}
 
-    const series = seriesBySymbol[symbol] || [];
-    if (!series.length) return [];
+// Build candlestick OHLC buckets for a given drill level
+function buildCandlestickData(series, level, ctx = {}) {
+  if (!series || !series.length) return [];
 
-    const data = series.map((row) => ({
-      // x is now a CATEGORY label, not a true datetime → no gaps between days
-      x: formatESTLabel(row.ts_utc),
-      y: [
-        round2(row.open),
-        round2(row.high),
-        round2(row.low),
-        round2(row.close),
-      ],
-    }));
+  const groups = new Map();
 
-    return [
-      {
-        name: symbol,
-        data,
-      },
-    ];
-  }, [seriesBySymbol, symbol]);
+  series.forEach((row) => {
+    const date = new Date(row.ts_utc);
+    if (Number.isNaN(date.getTime())) return;
+
+    const year = date.getFullYear();
+    const monthKey = `${year}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const weekKey = `${year}-W${String(getISOWeekNumber(date)).padStart(2, "0")}`;
+    const dayKey = date.toISOString().slice(0, 10);
+
+    // Filter by parent context
+    if (level === "month" && ctx.year && year !== ctx.year) return;
+    if (level === "week" && ctx.monthKey && monthKey !== ctx.monthKey) return;
+    if (level === "day" && ctx.weekKey && weekKey !== ctx.weekKey) return;
+    if (level === "minute" && ctx.dayKey && dayKey !== ctx.dayKey) return;
+
+    let bucketKey;
+    let label;
+
+    switch (level) {
+      case "year":
+        bucketKey = String(year);
+        label = bucketKey;
+        break;
+      case "month":
+        bucketKey = monthKey;            // e.g. 2025-05
+        label = monthKey;
+        break;
+      case "week":
+        bucketKey = weekKey;             // e.g. 2025-W18
+        label = weekKey;
+        break;
+      case "day":
+        bucketKey = dayKey;              // e.g. 2025-05-06
+        label = dayKey;
+        break;
+      case "minute":
+        bucketKey = `${dayKey} ${date.toISOString().slice(11, 16)}`; // YYYY-MM-DD HH:MM
+        label = formatESTLabel(row.ts_utc); // nice EST label
+        break;
+      default:
+        bucketKey = dayKey;
+        label = dayKey;
+    }
+
+    const existing = groups.get(bucketKey);
+    if (!existing) {
+      groups.set(bucketKey, {
+        key: bucketKey,
+        label,
+        open: row.open,
+        high: row.high,
+        low: row.low,
+        close: row.close,
+        ts_utc: row.ts_utc,
+      });
+    } else {
+      existing.high = Math.max(existing.high, row.high);
+      existing.low = Math.min(existing.low, row.low);
+      // keep latest close / timestamp
+      if (new Date(row.ts_utc) >= new Date(existing.ts_utc)) {
+        existing.close = row.close;
+        existing.ts_utc = row.ts_utc;
+      }
+    }
+  });
+
+  const arr = Array.from(groups.values());
+  arr.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
+
+  return arr.map((d) => ({
+    x: d.label,
+    y: [
+      round2(d.open),
+      round2(d.high),
+      round2(d.low),
+      round2(d.close),
+    ],
+    drillKey: d.key,
+  }));
+}
+
+// ----- Candlestick series with drill-down -----
+const candleSeries = useMemo(() => {
+  if (!symbol) return [];
+
+  const series = seriesBySymbol[symbol] || [];
+  if (!series.length) return [];
+
+  const data = buildCandlestickData(series, candleDrillLevel, {
+    year: drillYear,
+    monthKey: drillMonthKey,
+    weekKey: drillWeekKey,
+    dayKey: drillDayKey,
+  });
+
+  return [
+    {
+      name: symbol,
+      data,
+    },
+  ];
+}, [
+  seriesBySymbol,
+  symbol,
+  candleDrillLevel,
+  drillYear,
+  drillMonthKey,
+  drillWeekKey,
+  drillDayKey,
+]);
 
   // ----- Candlestick chart options -----
 const candleOptions = useMemo(
@@ -496,9 +588,41 @@ const candleOptions = useMemo(
         show: true,
       },
       background: "transparent",
+      events: {
+        dataPointSelection: (event, chartContext, config) => {
+          const sIdx = config.seriesIndex;
+          const pIdx = config.dataPointIndex;
+          const point =
+            config?.w?.config?.series?.[sIdx]?.data?.[pIdx];
+
+          if (!point || !point.drillKey) return;
+
+          setCandleDrillLevel((prev) => {
+            if (prev === "year") {
+              setDrillYear(Number(point.drillKey));
+              return "month";
+            }
+            if (prev === "month") {
+              setDrillMonthKey(point.drillKey);
+              return "week";
+            }
+            if (prev === "week") {
+              setDrillWeekKey(point.drillKey);
+              return "day";
+            }
+            if (prev === "day") {
+              setDrillDayKey(point.drillKey);
+              return "minute";
+            }
+            return prev;
+          });
+        },
+      },
     },
     title: {
-      text: symbol ? `${symbol} Candlestick` : "Candlestick",
+      text: symbol
+        ? `${symbol} Candlestick – ${candleDrillLevel.toUpperCase()} view`
+        : `Candlestick – ${candleDrillLevel.toUpperCase()} view`,
       align: "left",
       style: {
         fontSize: "14px",
@@ -561,7 +685,7 @@ const candleOptions = useMemo(
       },
     },
   }),
-  [symbol]
+  [symbol, candleDrillLevel]
 );
 
   // ----- Chart data: merge all active symbols into one timeline -----
@@ -844,7 +968,65 @@ const { callRows, putRows } = useMemo(() => {
 
         {/* ==== NEW: CANDLESTICK CHART FOR PRIMARY SYMBOL ==== */}
         <div className="chart-wrapper">
-          <h2>{symbol ? `${symbol} Candlestick` : "Candlestick"}</h2>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "4px",
+            }}
+          >
+            <h2>
+              {symbol ? `${symbol} Candlestick` : "Candlestick"} ·{" "}
+              {candleDrillLevel === "year"
+                ? "Year"
+                : candleDrillLevel === "month"
+                ? "Month"
+                : candleDrillLevel === "week"
+                ? "Week"
+                : candleDrillLevel === "day"
+                ? "Day"
+                : "Minute"}
+            </h2>
+
+            {candleDrillLevel !== "year" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCandleDrillLevel((prev) => {
+                    if (prev === "minute") {
+                      setDrillDayKey(null);
+                      return "day";
+                    }
+                    if (prev === "day") {
+                      setDrillWeekKey(null);
+                      return "week";
+                    }
+                    if (prev === "week") {
+                      setDrillMonthKey(null);
+                      return "month";
+                    }
+                    if (prev === "month") {
+                      setDrillYear(null);
+                      return "year";
+                    }
+                    return prev;
+                  });
+                }}
+                style={{
+                  fontSize: "0.8rem",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: "#1f2937",
+                  color: "#e5e7eb",
+                  cursor: "pointer",
+                }}
+              >
+                Drill up
+              </button>
+            )}
+          </div>
           <div className="chart-inner">
             {candleSeries.length && candleSeries[0].data.length ? (
               <Chart
