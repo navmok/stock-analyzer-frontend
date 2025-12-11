@@ -375,6 +375,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
+  // Round numeric values to 2 decimals
+function round2(v) {
+  if (v == null || isNaN(v)) return null;
+  return Number(v.toFixed(2));
+}
+
   // INSERT THIS:
 function getESTDateKey(isoTs) {
   const d = new Date(isoTs);
@@ -414,7 +420,12 @@ function getESTDateKey(isoTs) {
     const data = series.map((row) => ({
       // x is now a CATEGORY label, not a true datetime → no gaps between days
       x: formatESTLabel(row.ts_utc),
-      y: [row.open, row.high, row.low, row.close],
+      y: [
+        round2(row.open),
+        round2(row.high),
+        round2(row.low),
+        round2(row.close),
+      ],
     }));
 
     return [
@@ -461,7 +472,10 @@ const candleOptions = useMemo(
         enabled: true,
       },
       labels: {
-        formatter: (val) => `$${val.toFixed(2)}`,
+        formatter: (val) =>
+          val == null || isNaN(val)
+            ? ""
+            : `$${Number(val).toFixed(2)}`,
       },
     },
     plotOptions: {
