@@ -474,14 +474,15 @@ const candleOptions = useMemo(
     },
     tooltip: {
       shared: true,
-      theme: "dark",
+      theme: "dark", // better contrast on dark background
       y: {
-        formatter: (val) => {
-          if (val == null || isNaN(val)) return "";
-          return `$${Number(val).toFixed(2)}`;
-        },
+        formatter: (val) =>
+          val == null || isNaN(val)
+              ? ""
+              : `$${Number(val).toFixed(2)}`, // tooltip OHLC: $ + 2 decimals
       },
     },
+  }),
   [symbol]
 );
 
