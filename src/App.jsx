@@ -490,20 +490,21 @@ const candleOptions = useMemo(
       shared: true,
       theme: "dark",
       custom: function ({ seriesIndex, dataPointIndex, w }) {
-        const ohlc = w.globals.seriesCandleO[seriesIndex][dataPointIndex];
-        if (!ohlc) return "";
+        // Get the point we plotted: { x, y: [open, high, low, close] }
+        const point =
+          w?.config?.series?.[seriesIndex]?.data?.[dataPointIndex];
 
-        const labels = ["Open", "High", "Low", "Close"];
-        const fmt = (v) => {  // ✅ NEW LINES START
-          if (v == null || isNaN(v)) return "N/A";
-          return `$${Number(v).toFixed(2)}`;
-        };  // ✅ NEW LINES END
+        if (!point || !Array.isArray(point.y)) return "";
+
+        const [open, high, low, close] = point.y;
+        const fmt = (v) => `$${Number(v).toFixed(2)}`;
 
         return (
           '<div class="apex-tooltip" style="background:#111827;color:#e5e7eb;padding:8px 10px;border-radius:4px;font-size:12px;">' +
-          labels
-            .map((label, i) => `${label}: <b>${fmt(ohlc[i])}</b>`)
-            .join("<br/>") +
+          `Open: <b>${fmt(open)}</b><br/>` +
+          `High: <b>${fmt(high)}</b><br/>` +
+          `Low: <b>${fmt(low)}</b><br/>` +
+          `Close: <b>${fmt(close)}</b>` +
           "</div>"
         );
       },
