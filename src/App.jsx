@@ -234,6 +234,8 @@ export default function App() {
   const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
 
   const [days, setDays] = useState(365);
+  // view grain for multi-stock line chart
+  const [viewGrain, setViewGrain] = useState("day"); // "day" | "week" | "month" | "year"
   // Candlestick drill-down (Year → Month → Week → Day → Minute)
   const [candleDrillLevel, setCandleDrillLevel] = useState("year");
   const [drillYear, setDrillYear] = useState(null);
@@ -462,6 +464,37 @@ function getISOWeekNumber(d) {
   return weekNo;
 }
 
+// Group a row into a grain bucket (day/week/month/year)
+function getGrainBucket(row, grain) {
+  const d = new Date(row.ts_utc);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const week = getISOWeekNumber(d); // helper defined above
+  const dayLabel = row.timeLabel; // already formatted for small-day views
+
+  switch (grain) {
+    case "year": {
+      const key = `${year}`;
+      return { key, label: key, ts: d };
+    }
+    case "month": {
+      const key = `${year}-${String(month).padStart(2, "0")}`;
+      return { key, label: `${month}/${year}`, ts: d };
+    }
+    case "week": {
+      const key = `${year}-W${String(week).padStart(2, "0")}`;
+      return { key, label: `W${week} ${year}`, ts: d };
+    }
+    case "day":
+    default: {
+      const key = dayLabel;
+      return { key, label: dayLabel, ts: d };
+    }
+  }
+}
+
 // Build candlestick OHLC buckets for a given drill level
 function buildCandlestickData(series, level, ctx = {}) {
   if (!series || !series.length) return [];
@@ -688,35 +721,58 @@ const candleOptions = useMemo(
   [symbol, candleDrillLevel]
 );
 
-  // ----- Chart data: merge all active symbols into one timeline -----
+  // ----- Chart data: merge all active symbols into one timeline, aggregated by viewGrain -----
   const chartData = useMemo(() => {
     if (!activeSymbols.length) return [];
 
-    const map = new Map();
+    const buckets = new Map();
 
     activeSymbols.forEach((sym) => {
       const series = seriesBySymbol[sym] || [];
       series.forEach((row) => {
-        const key = row.timeLabel;
-        if (!map.has(key)) {
-          map.set(key, { timeLabel: key, ts_utc: row.ts_utc });
+        const bucket = getGrainBucket(row, viewGrain);
+        if (!bucket) return;
+
+        const { key, label, ts } = bucket;
+        let entry = buckets.get(key);
+        if (!entry) {
+          entry = {
+            bucketKey: key,
+            timeLabel: label,
+            ts_utc: ts.toISOString(),
+          };
+          buckets.set(key, entry);
         }
-        const entry = map.get(key);
-        entry[`${sym}_close`] = row.close;
-        entry[`${sym}_maWeek`] = row.maWeek;
-        entry[`${sym}_ma1M`] = row.ma1M;
-        entry[`${sym}_ma3M`] = row.ma3M;
-        entry[`${sym}_ma12M`] = row.ma12M;
-        entry[`${sym}_ema`] = row.ema;
-        entry[`${sym}_std5`] = row.std5;
-        entry[`${sym}_std60`] = row.std60;
+
+        const t = ts.getTime();
+        const prevTs = entry[`${sym}_ts`] || 0;
+
+        // use the *latest* row in the bucket for that symbol
+        if (t >= prevTs) {
+          entry[`${sym}_ts`] = t;
+          entry[`${sym}_close`] = row.close;
+          entry[`${sym}_maWeek`] = row.maWeek;
+          entry[`${sym}_ma1M`] = row.ma1M;
+          entry[`${sym}_ma3M`] = row.ma3M;
+          entry[`${sym}_ma12M`] = row.ma12M;
+          entry[`${sym}_ema`] = row.ema;
+          entry[`${sym}_std5`] = row.std5;
+          entry[`${sym}_std60`] = row.std60;
+        }
       });
     });
 
-    const combined = Array.from(map.values());
+    const combined = Array.from(buckets.values()).map((entry) => {
+      const clean = { ...entry };
+      Object.keys(clean).forEach((k) => {
+        if (k.endsWith("_ts") || k === "bucketKey") delete clean[k];
+      });
+      return clean;
+    });
+
     combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
     return combined;
-  }, [activeSymbols, seriesBySymbol]);
+  }, [activeSymbols, seriesBySymbol, viewGrain]);
 
   // ----- Price table rows: flatten active symbols -----
   const tableRows = useMemo(() => {
@@ -826,6 +882,31 @@ const { callRows, putRows } = useMemo(() => {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* View grain for second chart (like Google Calendar) */}
+        <div className="control">
+          <label>View</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["day", "week", "month", "year"].map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setViewGrain(g)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "1px solid #4b5563",
+                  background: viewGrain === g ? "#2563eb" : "transparent",
+                  color: "#e5e7eb",
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                }}
+              >
+                {g[0].toUpperCase() + g.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Days + buttons */}
