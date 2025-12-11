@@ -232,6 +232,13 @@ export default function App() {
   const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
   // primary symbol for "Latest" + MAs
   const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
+  const [symbolToAdd, setSymbolToAdd] = useState("");
+  const availableSymbols = ALL_SYMBOLS.filter(
+  (s) => !activeSymbols.includes(s)
+  );
+
+  const canAddMore =
+  activeSymbols.length < MAX_ACTIVE && availableSymbols.length > 0;
 
   const [days, setDays] = useState(365);
   const [viewGrain, setViewGrain] = useState("day");   // <-- INSERT HERE
@@ -838,7 +845,7 @@ const { callRows, putRows } = useMemo(() => {
                 className="symbol-chip"
                 onClick={() => handleSelectSymbol(s)}
                 style={{
-                  background: s === symbol ? "#1d4ed8" : "#334155", // blue highlight
+                  background: s === symbol ? "#1d4ed8" : "#334155",
                   color: "white",
                   border: "none",
                   padding: "6px 10px",
@@ -852,7 +859,7 @@ const { callRows, putRows } = useMemo(() => {
                   <span
                     className="chip-remove"
                     onClick={(e) => {
-                      e.stopPropagation(); // don't also select
+                      e.stopPropagation();
                       handleRemoveSymbol(s);
                     }}
                   >
@@ -861,6 +868,56 @@ const { callRows, putRows } = useMemo(() => {
                 )}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* NEW: Add stock selector */}
+        <div className="control-group">
+          <span className="control-label">Add stock</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select
+              value={symbolToAdd}
+              onChange={(e) => setSymbolToAdd(e.target.value)}
+              disabled={!canAddMore}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 6,
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "#e5e7eb",
+                fontSize: "0.8rem",
+              }}
+            >
+              <option value="">
+                {canAddMore ? "Select symbol…" : "No symbols available"}
+              </option>
+              {availableSymbols.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                if (!symbolToAdd) return;
+                handleAddSymbol(symbolToAdd);
+                setSymbolToAdd("");
+              }}
+              disabled={!symbolToAdd || !canAddMore}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: "1px solid #4b5563",
+                background: "#2563eb",
+                color: "#e5e7eb",
+                fontSize: "0.8rem",
+                cursor: !symbolToAdd || !canAddMore ? "not-allowed" : "pointer",
+                opacity: !symbolToAdd || !canAddMore ? 0.5 : 1,
+              }}
+            >
+              Add
+            </button>
           </div>
         </div>
 
