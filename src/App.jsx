@@ -605,6 +605,15 @@ const { callRows, putRows } = useMemo(() => {
                 type="button"
                 className="symbol-chip"
                 onClick={() => handleSelectSymbol(s)}
+                style={{
+                  background: s === symbol ? "#1d4ed8" : "#334155", // blue highlight
+                  color: "white",
+                  border: "none",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  marginRight: "8px",
+                  cursor: "pointer",
+                }}
               >
                 <span>{s}</span>
                 {activeSymbols.length > 1 && (
