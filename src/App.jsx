@@ -828,19 +828,78 @@ const { callRows, putRows } = useMemo(() => {
           </select>
         </div>
 
-        {/* Days + buttons */}
+        {/* Calendar-style view (Day / Week / Month / Year) */}
         <div className="control">
-          <label>Days</label>
-          <input
-            type="number"
-            min="1"
-            max="730"
-            value={days}
-            onChange={(e) => {
-              const d = Number(e.target.value || 1);
-              setDays(d);
+          <span className="control-label">View</span>
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              padding: "4px 0",
+              flexWrap: "wrap",
             }}
-          />
+          >
+            <button
+              type="button"
+              onClick={() => setDays(1)}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 999,
+                border: "1px solid #4b5563",
+                background: days === 1 ? "#2563eb" : "transparent",
+                color: "#e5e7eb",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Day
+            </button>
+            <button
+              type="button"
+              onClick={() => setDays(7)}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 999,
+                border: "1px solid #4b5563",
+                background: days === 7 ? "#2563eb" : "transparent",
+                color: "#e5e7eb",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Week
+            </button>
+            <button
+              type="button"
+              onClick={() => setDays(30)}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 999,
+                border: "1px solid #4b5563",
+                background: days === 30 ? "#2563eb" : "transparent",
+                color: "#e5e7eb",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setDays(365)}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 999,
+                border: "1px solid #4b5563",
+                background: days === 365 ? "#2563eb" : "transparent",
+                color: "#e5e7eb",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Year
+            </button>
+          </div>
         </div>
 
         <button onClick={() => loadDataForSymbols()} disabled={loading}>
