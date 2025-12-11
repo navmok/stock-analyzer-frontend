@@ -459,7 +459,7 @@ const candleOptions = useMemo(
       type: "category",
       tickAmount: 8, // you can tweak this
       labels: {
-        rotate: -45,
+        rotate: -90,
         trim: true,
         hideOverlappingLabels: true,
         style: {
@@ -488,12 +488,21 @@ const candleOptions = useMemo(
     },
     tooltip: {
       shared: true,
-      theme: "dark", // better contrast on dark background
-      y: {
-        formatter: (val) =>
-          val == null || isNaN(val)
-              ? ""
-              : `$${Number(val).toFixed(2)}`, // tooltip OHLC: $ + 2 decimals
+      theme: "dark",
+      custom: function ({ seriesIndex, dataPointIndex, w }) {
+        const ohlc = w.globals.seriesCandleO[seriesIndex][dataPointIndex];
+        if (!ohlc) return "";
+
+        const labels = ["Open", "High", "Low", "Close"];
+        const fmt = (v) => `$${Number(v).toFixed(2)}`;
+
+        return (
+          '<div class="apex-tooltip" style="background:#111827;color:#e5e7eb;padding:8px 10px;border-radius:4px;font-size:12px;">' +
+          labels
+            .map((label, i) => `${label}: <b>${fmt(ohlc[i])}</b>`)
+            .join("<br/>") +
+          "</div>"
+        );
       },
     },
   }),
@@ -773,9 +782,9 @@ const { callRows, putRows } = useMemo(() => {
                   dataKey="timeLabel"
                   minTickGap={30}
                   tick={{ fontSize: 10 }}
-                  angle={-45}
+                  angle={-90}
                   textAnchor="end"
-                  height={60}
+                  height={80}
                 />
                 <YAxis
                   tick={{ fontSize: 10 }}
