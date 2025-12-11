@@ -804,8 +804,6 @@ const { callRows, putRows } = useMemo(() => {
               <span className="slider"></span>
             </label>
           </label>
-        </div>
-      </section>
             <label className="ma-toggle">
             <span>σ5 (std dev)</span>
             <label className="switch">
@@ -829,6 +827,8 @@ const { callRows, putRows } = useMemo(() => {
               <span className="slider"></span>
             </label>
           </label>
+        </div>
+      </section>
 
        <main>
         {latest && (
