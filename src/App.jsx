@@ -54,6 +54,10 @@ function addMovingAverages(rows) {
   const EMA_PERIOD = 20;
   const alpha = 2 / (EMA_PERIOD + 1);
 
+  // 20-day rolling standard deviation (volatility)
+  const STD_PERIOD = 20;
+  const stdWindow = [];
+
   let sumWeek = 0,
     sum1 = 0,
     sum3 = 0,
@@ -61,8 +65,21 @@ function addMovingAverages(rows) {
 
   let ema = null;
 
+  function computeStdDev(arr) {
+  if (!arr.length) return null;
+  const mean = arr.reduce((acc, v) => acc + v, 0) / arr.length;
+  const variance =
+    arr.reduce((acc, v) => acc + (v - mean) * (v - mean), 0) /
+    arr.length;
+    return Math.sqrt(variance);
+ }
+
   return rows.map((row, i) => {
     const close = row.close;
+
+    // update std-dev window
+    stdWindow.push(close);
+    if (stdWindow.length > STD_PERIOD) stdWindow.shift();
 
     // accumulate
     sumWeek += close;
@@ -88,6 +105,12 @@ function addMovingAverages(rows) {
     // 🔹 Year MA: start showing once we have a decent window (e.g., 60+ days)
     const ma12M = len12M >= 60 ? sum12 / len12M : null;
 
+    // 🔹 20-day rolling std dev
+    const std20 =
+      stdWindow.length === STD_PERIOD
+       ? computeStdDev(stdWindow)
+       : null;
+
     // EMA
     if (ema === null) {
       ema = close;
@@ -103,6 +126,7 @@ function addMovingAverages(rows) {
       ma3M,
       ma12M,
       ema: emaVal,
+      std20,
     };
   });
 }
@@ -165,12 +189,14 @@ const CustomTooltip = ({
         const m3 = row[`${sym}_ma3M`];
         const y1 = row[`${sym}_ma12M`];
         const ema = row[`${sym}_ema`];
+        const std20 = row[`${sym}_std20`];
 
         if (showWeek && wk != null) parts.push(`Wk: ${wk.toFixed(2)}`);
         if (show1M && m1 != null) parts.push(`1M: ${m1.toFixed(2)}`);
         if (show3M && m3 != null) parts.push(`3M: ${m3.toFixed(2)}`);
         if (show12M && y1 != null) parts.push(`12M: ${y1.toFixed(2)}`);
         if (showEma && ema != null) parts.push(`EMA: ${ema.toFixed(2)}`);
+        if (std20 != null) parts.push(`σ20: ${std20.toFixed(2)}`);
 
         if (!parts.length) return null;
 
@@ -533,6 +559,7 @@ const candleOptions = useMemo(
         entry[`${sym}_ma3M`] = row.ma3M;
         entry[`${sym}_ma12M`] = row.ma12M;
         entry[`${sym}_ema`] = row.ema;
+        entry[`${sym}_std20`] = row.std20;
       });
     });
 
