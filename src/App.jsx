@@ -1125,7 +1125,17 @@ const { callRows, putRows } = useMemo(() => {
 
         {/* ==== MULTI-STOCK PRICE CHART ==== */}
         <div className="chart-wrapper">
-          <h2>Price (close) – {activeSymbols.join(", ")}</h2>
+          <h2>
+            Price (close) – {activeSymbols.join(", ")} ·{" "}
+            {viewGrain === "year"
+              ? "Year"
+              : viewGrain === "month"
+              ? "Month"
+              : viewGrain === "week"
+              ? "Week"
+              : "Day"}{" "}
+            view
+          </h2>
           <div className="chart-inner">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
