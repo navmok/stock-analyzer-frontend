@@ -597,7 +597,7 @@ const { callRows, putRows } = useMemo(() => {
       <section className="controls">
         {/* active symbols displayed as chips (max 5) */}
         <div className="control-group">
-          <span className="control-label">Stocks in view (1–5)</span>
+          <span className="control-label">Stocks in view</span>
           <div className="symbol-chips">
             {activeSymbols.map((s) => (
               <button
