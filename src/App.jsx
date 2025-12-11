@@ -474,7 +474,11 @@ const candleOptions = useMemo(
     },
     tooltip: {
       shared: true,
-      // Tooltip x-value is the same EST label we used in data.x
+      theme: "dark", // better contrast on dark background
+      y: {
+        formatter: (val) =>
+          val == null || isNaN(val) ? "" : Number(val).toFixed(2), // 2 decimals
+      },
     },
   }),
   [symbol]
