@@ -494,7 +494,10 @@ const candleOptions = useMemo(
         if (!ohlc) return "";
 
         const labels = ["Open", "High", "Low", "Close"];
-        const fmt = (v) => `$${Number(v).toFixed(2)}`;
+        const fmt = (v) => {  // ✅ NEW LINES START
+          if (v == null || isNaN(v)) return "N/A";
+          return `$${Number(v).toFixed(2)}`;
+        };  // ✅ NEW LINES END
 
         return (
           '<div class="apex-tooltip" style="background:#111827;color:#e5e7eb;padding:8px 10px;border-radius:4px;font-size:12px;">' +
