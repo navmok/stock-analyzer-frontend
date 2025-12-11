@@ -232,16 +232,8 @@ export default function App() {
   const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
   // primary symbol for "Latest" + MAs
   const [symbol, setSymbol] = useState(DEFAULT_ACTIVE[0]);
-  const [symbolToAdd, setSymbolToAdd] = useState("");
-  const availableSymbols = ALL_SYMBOLS.filter(
-  (s) => !activeSymbols.includes(s)
-  );
-
-  const canAddMore =
-  activeSymbols.length < MAX_ACTIVE && availableSymbols.length > 0;
 
   const [days, setDays] = useState(365);
-  const [viewGrain, setViewGrain] = useState("day");   // <-- INSERT HERE
   // Candlestick drill-down (Year → Month → Week → Day → Minute)
   const [candleDrillLevel, setCandleDrillLevel] = useState("year");
   const [drillYear, setDrillYear] = useState(null);
@@ -696,89 +688,35 @@ const candleOptions = useMemo(
   [symbol, candleDrillLevel]
 );
 
-// Group a row into a grain bucket (day/week/month/year)
-function getGrainBucket(row, grain) {
-  const d = new Date(row.ts_utc);
-  if (Number.isNaN(d.getTime())) return null;
-
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const week = getISOWeekNumber(d); // helper defined above
-  const dayLabel = row.timeLabel;
-
-  switch (grain) {
-    case "year": {
-      const key = `${year}`;
-      return { key, label: key, ts: d };
-    }
-    case "month": {
-      const key = `${year}-${String(month).padStart(2, "0")}`;
-      return { key, label: `${month}/${year}`, ts: d };
-    }
-    case "week": {
-      const key = `${year}-W${String(week).padStart(2, "0")}`;
-      return { key, label: `W${week} ${year}`, ts: d };
-    }
-    case "day":
-    default: {
-      const key = dayLabel;
-      return { key, label: dayLabel, ts: d };
-    }
-  }
-}
-
   // ----- Chart data: merge all active symbols into one timeline -----
   const chartData = useMemo(() => {
     if (!activeSymbols.length) return [];
 
-    const buckets = new Map();
+    const map = new Map();
 
     activeSymbols.forEach((sym) => {
       const series = seriesBySymbol[sym] || [];
       series.forEach((row) => {
-        const bucket = getGrainBucket(row, viewGrain);
-        if (!bucket) return;
-
-        const { key, label, ts } = bucket;
-        let entry = buckets.get(key);
-        if (!entry) {
-          entry = {
-            bucketKey: key,
-            timeLabel: label,
-            ts_utc: ts.toISOString(),
-          };
-          buckets.set(key, entry);
+        const key = row.timeLabel;
+        if (!map.has(key)) {
+          map.set(key, { timeLabel: key, ts_utc: row.ts_utc });
         }
-
-        const t = ts.getTime();
-        const prevTs = entry[`${sym}_ts`] || 0;
-
-        // Use the *latest* row in the bucket for that symbol
-        if (t >= prevTs) {
-          entry[`${sym}_ts`] = t;
-          entry[`${sym}_close`] = row.close;
-          entry[`${sym}_maWeek`] = row.maWeek;
-          entry[`${sym}_ma1M`] = row.ma1M;
-          entry[`${sym}_ma3M`] = row.ma3M;
-          entry[`${sym}_ma12M`] = row.ma12M;
-          entry[`${sym}_ema`] = row.ema;
-          entry[`${sym}_std5`] = row.std5;
-          entry[`${sym}_std60`] = row.std60;
-        }
+        const entry = map.get(key);
+        entry[`${sym}_close`] = row.close;
+        entry[`${sym}_maWeek`] = row.maWeek;
+        entry[`${sym}_ma1M`] = row.ma1M;
+        entry[`${sym}_ma3M`] = row.ma3M;
+        entry[`${sym}_ma12M`] = row.ma12M;
+        entry[`${sym}_ema`] = row.ema;
+        entry[`${sym}_std5`] = row.std5;
+        entry[`${sym}_std60`] = row.std60;
       });
     });
 
-    const combined = Array.from(buckets.values()).map((entry) => {
-      const clean = { ...entry };
-      Object.keys(clean).forEach((k) => {
-        if (k.endsWith("_ts") || k === "bucketKey") delete clean[k];
-      });
-      return clean;
-    });
-
+    const combined = Array.from(map.values());
     combined.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
     return combined;
-  }, [activeSymbols, seriesBySymbol, viewGrain]);
+  }, [activeSymbols, seriesBySymbol]);
 
   // ----- Price table rows: flatten active symbols -----
   const tableRows = useMemo(() => {
@@ -845,7 +783,7 @@ const { callRows, putRows } = useMemo(() => {
                 className="symbol-chip"
                 onClick={() => handleSelectSymbol(s)}
                 style={{
-                  background: s === symbol ? "#1d4ed8" : "#334155",
+                  background: s === symbol ? "#1d4ed8" : "#334155", // blue highlight
                   color: "white",
                   border: "none",
                   padding: "6px 10px",
@@ -859,7 +797,7 @@ const { callRows, putRows } = useMemo(() => {
                   <span
                     className="chip-remove"
                     onClick={(e) => {
-                      e.stopPropagation();
+                      e.stopPropagation(); // don't also select
                       handleRemoveSymbol(s);
                     }}
                   >
@@ -871,153 +809,38 @@ const { callRows, putRows } = useMemo(() => {
           </div>
         </div>
 
-        {/* NEW: Add stock selector */}
-        <div className="control-group">
-          <span className="control-label">Add stock</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <select
-              value={symbolToAdd}
-              onChange={(e) => setSymbolToAdd(e.target.value)}
-              disabled={!canAddMore}
-              style={{
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: "1px solid #4b5563",
-                background: "#020617",
-                color: "#e5e7eb",
-                fontSize: "0.8rem",
-              }}
-            >
-              <option value="">
-                {canAddMore ? "Select symbol…" : "No symbols available"}
-              </option>
-              {availableSymbols.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => {
-                if (!symbolToAdd) return;
-                handleAddSymbol(symbolToAdd);
-                setSymbolToAdd("");
-              }}
-              disabled={!symbolToAdd || !canAddMore}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: "1px solid #4b5563",
-                background: "#2563eb",
-                color: "#e5e7eb",
-                fontSize: "0.8rem",
-                cursor: !symbolToAdd || !canAddMore ? "not-allowed" : "pointer",
-                opacity: !symbolToAdd || !canAddMore ? 0.5 : 1,
-              }}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-
-        {/* Grain selector (Day / Week / Month / Year) */}
+        {/* Add stock selector (adds, drops oldest if >5) */}
         <div className="control">
-          <label>View</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["day", "week", "month", "year"].map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setViewGrain(g)}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 6,
-                  border: "1px solid #4b5563",
-                  background: viewGrain === g ? "#2563eb" : "transparent",
-                  color: "#e5e7eb",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                }}
-              >
-                {g[0].toUpperCase() + g.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Calendar-style view (Day / Week / Month / Year) */}
-        <div className="control">
-          <span className="control-label">View</span>
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              padding: "4px 0",
-              flexWrap: "wrap",
+          <label>Add stock</label>
+          <select
+            value=""
+            onChange={(e) => {
+              handleAddSymbol(e.target.value);
+              e.target.value = "";
             }}
           >
-            <button
-              type="button"
-              onClick={() => setViewGrain("day")}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: "1px solid #4b5563",
-                background: viewGrain === "day" ? "#2563eb" : "transparent",
-                color: "#e5e7eb",
-                fontSize: "0.8rem",
-                cursor: "pointer",
-              }}
-            >
-              Day
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewGrain("week")}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: "1px solid #4b5563",
-                background: viewGrain === "week" ? "#2563eb" : "transparent",
-                color: "#e5e7eb",
-                fontSize: "0.8rem",
-                cursor: "pointer",
-              }}
-            >
-              Week
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewGrain("month")}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: "1px solid #4b5563",
-                background: viewGrain === "month" ? "#2563eb" : "transparent",
-                color: "#e5e7eb",
-                fontSize: "0.8rem",
-                cursor: "pointer",
-              }}
-            >
-              Month
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewGrain("year")}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: "1px solid #4b5563",
-                background: viewGrain === "year" ? "#2563eb" : "transparent",
-                color: "#e5e7eb",
-                fontSize: "0.8rem",
-                cursor: "pointer",
-              }}
-            >
-              Year
-            </button>
-          </div>
+            <option value="">Choose…</option>
+            {ALL_SYMBOLS.filter((s) => !activeSymbols.includes(s)).map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Days + buttons */}
+        <div className="control">
+          <label>Days</label>
+          <input
+            type="number"
+            min="1"
+            max="730"
+            value={days}
+            onChange={(e) => {
+              const d = Number(e.target.value || 1);
+              setDays(d);
+            }}
+          />
         </div>
 
         <button onClick={() => loadDataForSymbols()} disabled={loading}>
