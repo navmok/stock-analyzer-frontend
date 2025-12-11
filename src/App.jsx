@@ -54,9 +54,20 @@ function addMovingAverages(rows) {
   const EMA_PERIOD = 20;
   const alpha = 2 / (EMA_PERIOD + 1);
 
-  // 20-day rolling standard deviation (volatility)
-  const STD_PERIOD = 20;
-  const stdWindow = [];
+  // Std dev windows
+  const STD5_PERIOD = 5;
+  const STD60_PERIOD = 60;
+  const std5Window = [];
+  const std60Window = [];
+
+  function computeStdDev(arr) {
+    if (!arr.length) return null;
+    const mean = arr.reduce((acc, v) => acc + v, 0) / arr.length;
+    const variance =
+      arr.reduce((acc, v) => acc + (v - mean) * (v - mean), 0) /
+      arr.length;
+    return Math.sqrt(variance);
+  }
 
   let sumWeek = 0,
     sum1 = 0,
@@ -77,9 +88,12 @@ function addMovingAverages(rows) {
   return rows.map((row, i) => {
     const close = row.close;
 
-    // update std-dev window
-    stdWindow.push(close);
-    if (stdWindow.length > STD_PERIOD) stdWindow.shift();
+    // std-dev windows
+    std5Window.push(close);
+    if (std5Window.length > STD5_PERIOD) std5Window.shift();
+
+    std60Window.push(close);
+    if (std60Window.length > STD60_PERIOD) std60Window.shift();
 
     // accumulate
     sumWeek += close;
@@ -105,11 +119,15 @@ function addMovingAverages(rows) {
     // 🔹 Year MA: start showing once we have a decent window (e.g., 60+ days)
     const ma12M = len12M >= 60 ? sum12 / len12M : null;
 
-    // 🔹 20-day rolling std dev
-    const std20 =
-      stdWindow.length === STD_PERIOD
-       ? computeStdDev(stdWindow)
-       : null;
+    // Std devs
+    const std5 =
+      std5Window.length === STD5_PERIOD
+        ? computeStdDev(std5Window)
+        : null;
+    const std60 =
+      std60Window.length === STD60_PERIOD
+        ? computeStdDev(std60Window)
+        : null;
 
     // EMA
     if (ema === null) {
@@ -126,7 +144,8 @@ function addMovingAverages(rows) {
       ma3M,
       ma12M,
       ema: emaVal,
-      std20,
+      std5,
+      std60,
     };
   });
 }
@@ -142,6 +161,8 @@ const CustomTooltip = ({
   show3M,
   show12M,
   showEma,
+  showStd5,
+  showStd60,
 }) => {
   if (!active || !payload || !payload.length) return null;
 
@@ -189,14 +210,16 @@ const CustomTooltip = ({
         const m3 = row[`${sym}_ma3M`];
         const y1 = row[`${sym}_ma12M`];
         const ema = row[`${sym}_ema`];
-        const std20 = row[`${sym}_std20`];
+        const std5 = row[`${sym}_std5`];
+        const std60 = row[`${sym}_std60`];
 
         if (showWeek && wk != null) parts.push(`Wk: ${wk.toFixed(2)}`);
         if (show1M && m1 != null) parts.push(`1M: ${m1.toFixed(2)}`);
         if (show3M && m3 != null) parts.push(`3M: ${m3.toFixed(2)}`);
         if (show12M && y1 != null) parts.push(`12M: ${y1.toFixed(2)}`);
         if (showEma && ema != null) parts.push(`EMA: ${ema.toFixed(2)}`);
-        if (std20 != null) parts.push(`σ20: ${std20.toFixed(2)}`);
+        if (showStd5 && std5 != null) parts.push(`σ5: ${std5.toFixed(2)}`);
+        if (showStd60 && std60 != null) parts.push(`σ60: ${std60.toFixed(2)}`);
 
         if (!parts.length) return null;
 
@@ -237,6 +260,8 @@ export default function App() {
   const [show12M, setShow12M] = useState(false); // Year
   const [showWeek, setShowWeek] = useState(false); // Weekly
   const [showEma, setShowEma] = useState(false); // EMA
+  const [showStd5, setShowStd5] = useState(false);   // σ5
+  const [showStd60, setShowStd60] = useState(false); // σ60
 
   // --- set primary (for Latest + MAs). does NOT reload prices ---
   function handleSelectSymbol(sym) {
@@ -559,7 +584,8 @@ const candleOptions = useMemo(
         entry[`${sym}_ma3M`] = row.ma3M;
         entry[`${sym}_ma12M`] = row.ma12M;
         entry[`${sym}_ema`] = row.ema;
-        entry[`${sym}_std20`] = row.std20;
+        entry[`${sym}_std5`] = row.std5;
+        entry[`${sym}_std60`] = row.std60;
       });
     });
 
@@ -780,6 +806,29 @@ const { callRows, putRows } = useMemo(() => {
           </label>
         </div>
       </section>
+            <label className="ma-toggle">
+            <span>σ5 (std dev)</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={showStd5}
+                onChange={(e) => setShowStd5(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
+
+          <label className="ma-toggle">
+            <span>σ60 (std dev)</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={showStd60}
+                onChange={(e) => setShowStd60(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </label>
 
        <main>
         {latest && (
@@ -842,9 +891,11 @@ const { callRows, putRows } = useMemo(() => {
                       show3M={show3M}
                       show12M={show12M}
                       showEma={showEma}
+                      showStd5={showStd5}
+                      showStd60={showStd60}
                     />
                   )}
-                  />
+                />
                 <Legend />
 
                 {/* One Close line per active symbol */}
