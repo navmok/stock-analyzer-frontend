@@ -410,7 +410,7 @@ export default function App() {
       for (const [sym, opts] of results) {
         map[sym] = opts;
       }
-      setOptionsBySymbol(map);
+      setOptionsBySymbol((prev) => ({ ...prev, ...map }));
     } catch (err) {
       console.error("Options fetch error:", err);
       setOptionsError("Failed to load options: " + err.message);
@@ -424,6 +424,18 @@ export default function App() {
     loadDataForSymbols();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
+
+  // AUTO-LOAD OPTIONS for newly added / re-added symbols
+useEffect(() => {
+  const missing = activeSymbols.filter(
+    (s) => !(s in optionsBySymbol)
+  );
+
+  if (missing.length > 0) {
+    loadOptionsForSymbols(missing);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [activeSymbols]);
 
   // Reset candlestick drill when user changes symbol or days
 useEffect(() => {
