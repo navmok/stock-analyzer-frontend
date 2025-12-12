@@ -252,6 +252,9 @@ export default function App() {
   const [optionsBySymbol, setOptionsBySymbol] = useState({});
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState("");
+  const [optionsTabSymbol, setOptionsTabSymbol] = useState(DEFAULT_ACTIVE[0]);
+  const [expiryBySymbol, setExpiryBySymbol] = useState({});
+  const selectedExpiry = expiryBySymbol[optionsTabSymbol] || "ALL";
 
   // MA toggles (all off by default)
   const [show1M, setShow1M] = useState(false); // Month
@@ -425,16 +428,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSymbols, days]);
 
-  // AUTO-LOAD OPTIONS for newly added / re-added symbols
-useEffect(() => {
-  const missing = activeSymbols.filter(
-    (s) => !(s in optionsBySymbol)
+  useEffect(() => {
+  if (!activeSymbols.length) return;
+  setOptionsTabSymbol((prev) =>
+    activeSymbols.includes(prev) ? prev : activeSymbols[0]
   );
+}, [activeSymbols]);
 
-  if (missing.length > 0) {
-    loadOptionsForSymbols(missing);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // AUTO-LOAD OPTIONS for newly added / re-added symbols
+  useEffect(() => {
+  const missing = activeSymbols.filter((s) => !(s in optionsBySymbol));
+  if (missing.length > 0) loadOptionsForSymbols(missing);
 }, [activeSymbols]);
 
   // Reset candlestick drill when user changes symbol or days
@@ -800,33 +804,46 @@ const candleOptions = useMemo(
     return rows;
   }, [activeSymbols, seriesBySymbol]);
 
+  const expirationsForTab = useMemo(() => {
+    const rows = optionsBySymbol[optionsTabSymbol] || [];
+    const set = new Set();
+    rows.forEach((o) => {
+      if (!o.expiration) return;
+      const d = new Date(o.expiration);
+      if (!Number.isNaN(d.getTime())) set.add(d.toISOString().slice(0, 10)); // YYYY-MM-DD
+    });
+    return Array.from(set).sort();
+  }, [optionsBySymbol, optionsTabSymbol]);
+
   // ----- Options table rows: flatten active symbols -----
 const { callRows, putRows } = useMemo(() => {
-  const rows = [];
-  activeSymbols.forEach((sym) => {
-    const opts = optionsBySymbol[sym] || [];
-    opts.forEach((o) => {
-      rows.push({ symbol: sym, ...o });
-    });
-  });
+  const rows = (optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
+    symbol: optionsTabSymbol,
+    ...o,
+  }));
+
+  const filtered =
+    selectedExpiry === "ALL"
+      ? rows
+      : rows.filter((r) => {
+          if (!r.expiration) return false;
+          const d = new Date(r.expiration);
+          if (Number.isNaN(d.getTime())) return false;
+          return d.toISOString().slice(0, 10) === selectedExpiry;
+        });
 
   const calls = [];
   const puts = [];
 
-  rows.forEach((r) => {
+  filtered.forEach((r) => {
     const t = (r.type || "").toString().toUpperCase();
-    if (t === "CALL" || t === "C") {
-      calls.push(r);
-    } else if (t === "PUT" || t === "P") {
-      puts.push(r);
-    } else {
-      // if unknown, you can choose where to put; default to calls
-      calls.push(r);
-    }
+    if (t === "CALL" || t === "C") calls.push(r);
+    else if (t === "PUT" || t === "P") puts.push(r);
+    else calls.push(r);
   });
 
   return { callRows: calls, putRows: puts };
-}, [activeSymbols, optionsBySymbol]);
+}, [optionsBySymbol, optionsTabSymbol, selectedExpiry]);
 
   const latestSeries = seriesBySymbol[symbol] || [];
   const latest = latestSeries.length
@@ -1317,14 +1334,68 @@ const { callRows, putRows } = useMemo(() => {
           </div>
         </div>
 
-        {/* ==== OPTIONS TABLES (Calls & Puts) ==== */}
-        <div className="table-wrapper">
-          <h2>
-            Options – Calls &amp; Puts{" "}
-            <span style={{ fontSize: "0.9rem", fontWeight: "normal" }}>
-              (Calls: {callRows.length} · Puts: {putRows.length})
-            </span>
-          </h2>
+{/* ==== OPTIONS TABLES (Calls & Puts) ==== */}
+<div className="table-wrapper">
+  <h2>
+    Options – Calls &amp; Puts{" "}
+    <span style={{ fontSize: "0.9rem", fontWeight: "normal" }}>
+      (Calls: {callRows.length} · Puts: {putRows.length})
+    </span>
+  </h2>
+
+  {/* Tabs + Expiration dropdown */}
+  <div
+    style={{
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      marginBottom: 8,
+    }}
+  >
+    {/* Symbol Tabs */}
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {activeSymbols.map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => setOptionsTabSymbol(s)}
+          style={{
+            padding: "4px 10px",
+            borderRadius: 999,
+            border: "1px solid #4b5563",
+            background: optionsTabSymbol === s ? "#2563eb" : "transparent",
+            color: "#e5e7eb",
+            cursor: "pointer",
+            fontSize: "0.85rem",
+          }}
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+
+    {/* Expiration Dropdown */}
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>Expiration</span>
+              <select
+                value={selectedExpiry}
+                onChange={(e) =>
+                  setExpiryBySymbol((prev) => ({
+                    ...prev,
+                    [optionsTabSymbol]: e.target.value,
+                  }))
+                }
+              >
+                <option value="ALL">All</option>
+                {expirationsForTab.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           {optionsLoading && <p>Loading options…</p>}
 
@@ -1343,7 +1414,7 @@ const { callRows, putRows } = useMemo(() => {
                   overflowY: "auto",
                 }}
               >
-                {/* Calls */}
+                {/* ===== CALLS ===== */}
                 <div>
                   <h3>Calls ({callRows.length})</h3>
                   <table>
@@ -1382,7 +1453,7 @@ const { callRows, putRows } = useMemo(() => {
                   </table>
                 </div>
 
-                {/* Puts */}
+                {/* ===== PUTS ===== */}
                 <div>
                   <h3>Puts ({putRows.length})</h3>
                   <table>

@@ -21,6 +21,12 @@ function buildMockOptions(symbol) {
       openInterest: 5000 - absI * 200,
       expiration: "2026-01-16T00:00:00Z",
       inTheMoney: i < 0,
+      impliedVolatility: null,
+      delta: null,
+      gamma: null,
+      theta: null,
+      vega: null,
+      rho: null,
     });
 
     options.push({
@@ -34,6 +40,12 @@ function buildMockOptions(symbol) {
       openInterest: 4500 - absI * 200,
       expiration: "2026-01-16T00:00:00Z",
       inTheMoney: i > 0,
+      impliedVolatility: null,
+      delta: null,
+      gamma: null,
+      theta: null,
+      vega: null,
+      rho: null,
     });
   }
 
@@ -82,6 +94,13 @@ function mapPolygonContract(r) {
 
   const expiration = toIsoDateMaybe(details?.expiration_date || details?.expirationDate || r?.expiration_date);
 
+  const greeks = r?.greeks || {};
+  const impliedVolatility = pickNumber(
+    r?.implied_volatility,
+    r?.iv,
+    greeks?.implied_volatility
+  );
+
   return {
     contractSymbol: contractSymbol || null,
     type: type || null, // "C" or "P"
@@ -93,6 +112,12 @@ function mapPolygonContract(r) {
     openInterest: openInterest ?? null,
     expiration,
     inTheMoney: r?.in_the_money ?? r?.inTheMoney ?? null,
+    impliedVolatility: impliedVolatility ?? null,
+    delta: pickNumber(greeks?.delta) ?? null,
+    gamma: pickNumber(greeks?.gamma) ?? null,
+    theta: pickNumber(greeks?.theta) ?? null,
+    vega: pickNumber(greeks?.vega) ?? null,
+    rho: pickNumber(greeks?.rho) ?? null,
   };
 }
 
@@ -126,10 +151,7 @@ export default async function handler(req, res) {
     return res.status(200).json(buildMockOptions(symbol));
   }
 
-  const apiKey =
-    process.env.POLYGON_API_KEY ||
-    process.env.NEXT_PUBLIC_POLYGON_API_KEY ||
-    "";
+  const apiKey = process.env.POLYGON_API_KEY || "";
 
   if (!apiKey) {
     console.error("Missing POLYGON_API_KEY env var. Falling back to mock options.");
