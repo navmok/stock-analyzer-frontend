@@ -1,4 +1,6 @@
 // pages/api/options.js (Next.js API route)
+// Polygon Options Chain Snapshot (paid plan) implementation.
+// Docs: GET /v3/snapshot/options/{underlyingAsset}
 
 function buildMockOptions(symbol) {
   const baseStrike = 300;
@@ -38,73 +40,115 @@ function buildMockOptions(symbol) {
   return options;
 }
 
-export default async function handler(req, res) {
-  const symbol = req.query?.symbol || "GOOGL";
-  const useMock = req.query?.mock === "1"; // optional: ?mock=1 to force mock
+function toIsoDateMaybe(v) {
+  if (!v) return null;
+  if (typeof v === "number") return new Date(v).toISOString();
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v + "T00:00:00Z";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
 
-  // If you want to force mock explicitly
+function pickNumber(...vals) {
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function mapPolygonContract(r) {
+  const details = r?.details || {};
+  const ct = (details?.contract_type || details?.contractType || "").toLowerCase();
+  const type = ct === "call" ? "C" : ct === "put" ? "P" : null;
+
+  const lastTrade = r?.last_trade || r?.lastTrade || {};
+  const lastQuote = r?.last_quote || r?.lastQuote || {};
+  const day = r?.day || {};
+
+  const lastPrice = pickNumber(
+    lastTrade?.price, lastTrade?.p,
+    day?.close, day?.c,
+    r?.last_price, r?.lastPrice
+  );
+
+  const bid = pickNumber(lastQuote?.bid, lastQuote?.bid_price, lastQuote?.p, lastQuote?.bp);
+  const ask = pickNumber(lastQuote?.ask, lastQuote?.ask_price, lastQuote?.ap);
+
+  const volume = pickNumber(day?.volume, day?.v, r?.volume);
+  const openInterest = pickNumber(r?.open_interest, r?.openInterest);
+
+  const strike = pickNumber(details?.strike_price, details?.strikePrice, r?.strike_price, r?.strike);
+
+  const contractSymbol = details?.ticker || details?.ticker_symbol || details?.tickerSymbol || r?.ticker;
+
+  const expiration = toIsoDateMaybe(details?.expiration_date || details?.expirationDate || r?.expiration_date);
+
+  return {
+    contractSymbol: contractSymbol || null,
+    type: type || null, // "C" or "P"
+    strike: strike ?? null,
+    lastPrice: lastPrice ?? null,
+    bid: bid ?? null,
+    ask: ask ?? null,
+    volume: volume ?? null,
+    openInterest: openInterest ?? null,
+    expiration,
+    inTheMoney: r?.in_the_money ?? r?.inTheMoney ?? null,
+  };
+}
+
+async function fetchPolygonChain({ symbol, apiKey, contractType, expirationDate, limit = 250 }) {
+  const base = `https://api.polygon.io/v3/snapshot/options/${encodeURIComponent(symbol)}`;
+  const qs = new URLSearchParams();
+  qs.set("apiKey", apiKey);
+  qs.set("limit", String(limit));
+
+  // Optional filters supported by Polygon:
+  if (contractType) qs.set("contract_type", contractType); // "call" | "put"
+  if (expirationDate) qs.set("expiration_date", expirationDate); // YYYY-MM-DD
+
+  const url = `${base}?${qs.toString()}`;
+
+  const r = await fetch(url);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error(`Polygon HTTP ${r.status}: ${txt?.slice(0, 300)}`);
+  }
+
+  return r.json();
+}
+
+export default async function handler(req, res) {
+  const symbol = (req.query?.symbol || "GOOGL").toUpperCase();
+  const useMock = req.query?.mock === "1"; // optional: ?mock=1 to force mock
+  const expiration = req.query?.expiration || null; // optional: YYYY-MM-DD
+
   if (useMock) {
-    const mockOptions = buildMockOptions(symbol);
-    return res.status(200).json(mockOptions);
+    return res.status(200).json(buildMockOptions(symbol));
+  }
+
+  const apiKey =
+    process.env.POLYGON_API_KEY ||
+    process.env.NEXT_PUBLIC_POLYGON_API_KEY ||
+    "";
+
+  if (!apiKey) {
+    console.error("Missing POLYGON_API_KEY env var. Falling back to mock options.");
+    return res.status(200).json(buildMockOptions(symbol));
   }
 
   try {
-    const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(
-      symbol
-    )}`;
+    // Grab both calls + puts (Polygon lets you filter by contract_type).
+    const [callsJson, putsJson] = await Promise.all([
+      fetchPolygonChain({ symbol, apiKey, contractType: "call", expirationDate: expiration, limit: 250 }),
+      fetchPolygonChain({ symbol, apiKey, contractType: "put", expirationDate: expiration, limit: 250 }),
+    ]);
 
-    // Add a User-Agent just to be safe; some hosts are picky
-    const yfRes = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-      },
-    });
+    const calls = (callsJson?.results || []).map(mapPolygonContract).filter(o => o.contractSymbol);
+    const puts = (putsJson?.results || []).map(mapPolygonContract).filter(o => o.contractSymbol);
 
-    if (!yfRes.ok) {
-      throw new Error(`Yahoo Finance HTTP ${yfRes.status}`);
-    }
-
-    const json = await yfRes.json();
-    const chain = json?.optionChain?.result?.[0];
-    const opt = chain?.options?.[0];
-
-    if (!opt) {
-      // No options data – return empty array (or mock if you prefer)
-      return res.status(200).json([]);
-    }
-
-    const calls = opt.calls || [];
-    const puts = opt.puts || [];
-
-    const mapOption = (o, type) => ({
-      contractSymbol: o.contractSymbol,
-      type, // "C" or "P"
-      strike: o.strike,
-      lastPrice: o.lastPrice,
-      bid: o.bid,
-      ask: o.ask,
-      volume: o.volume,
-      openInterest: o.openInterest,
-      expiration: o.expiration
-        ? new Date(o.expiration * 1000).toISOString()
-        : null,
-      inTheMoney: o.inTheMoney,
-    });
-
-    const options = [
-      ...calls.map((o) => mapOption(o, "C")),
-      ...puts.map((o) => mapOption(o, "P")),
-    ];
-
-    return res.status(200).json(options);
+    return res.status(200).json([...calls, ...puts]);
   } catch (err) {
-    console.error("Error fetching Yahoo Finance options:", err);
-
-    // Fallback: return mock options so UI still works
-    const fallback = buildMockOptions(symbol);
-    return res.status(200).json(fallback);
-    // If you’d rather fail hard instead, use:
-    // return res.status(500).json({ error: "Failed to fetch options" });
+    console.error("Error fetching Polygon options chain snapshot:", err);
+    return res.status(200).json(buildMockOptions(symbol));
   }
 }
