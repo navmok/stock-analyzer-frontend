@@ -1407,8 +1407,8 @@ export default function App() {
                 symbol={optionsTabSymbol}
                 options={(optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
                   ...o,
-                  // normalize strike to dollars (Polygon often returns in cents)
-                  strike: o.strike != null ? o.strike / 100 : null,
+                  // normalize strike to dollars (Polygon often returns in cents, but sometimes dollars)
+                  strike: o.strike != null ? o.strike : null,
                   // normalize type to "C"/"P"
                   type:
                     String(o.type || "").toUpperCase().startsWith("P") ? "P" : "C",
