@@ -11,7 +11,7 @@ import {
   Legend,
 } from "recharts";
 import Chart from "react-apexcharts";  // ⬅️ NEW
-import HedgeFundTable from "./HedgeFundTable";
+import HedgeFundTable from "./HedgeFundTable.jsx";
 
 const API_BASE =
   process.env.NODE_ENV === "production"
