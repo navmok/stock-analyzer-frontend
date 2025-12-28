@@ -1,6 +1,10 @@
 import pg from "pg";
 const { Pool } = pg;
 
+// 🔥 ADD THIS (CACHE)
+let CACHE = {};
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 let pool;
 function getPool() {
   if (!pool) {
@@ -59,6 +63,13 @@ export default async function handler(req, res) {
   try {
     const period = String(req.query.period || "2025Q3").trim();
     const qEnd = periodToQuarterEnd(period);
+
+    // 🔥 ADD THIS (CACHE CHECK)
+    const cacheKey = `${period}|${search}|${[...types].join(",")}`;
+    const cached = CACHE[cacheKey];
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      return res.status(200).json(cached.data);
+    }
     if (!qEnd) return res.status(400).json({ error: "Bad period. Use like 2025Q3." });
 
     const search = String(req.query.search || "").toLowerCase().trim();
@@ -76,41 +87,35 @@ export default async function handler(req, res) {
     //   2) ONLY using true quarter-end dates (filters out old bad rows)
     //   3) strict prior-quarter matches via interval subtraction
     const sql = `
-      WITH base AS (
+      WITH cur AS (
+        -- 🔥 only rows for THIS quarter
         SELECT
           cik,
-          MAX(manager_name) AS manager_name,
+          manager_name,
           period_end::date AS period_end,
-          MAX(total_value_m)::double precision AS total_value_m,
-          MAX(num_holdings)::int AS num_holdings
+          total_value_m,
+          num_holdings
         FROM manager_quarter
-        WHERE
-          (EXTRACT(MONTH FROM period_end::date), EXTRACT(DAY FROM period_end::date)) IN
-            ((3,31),(6,30),(9,30),(12,31))
-        GROUP BY cik, period_end::date
+        WHERE period_end = $1::date
       ),
-      cur AS (
-        SELECT * FROM base WHERE period_end = $1::date
+      base AS (
+        -- 🔥 only historical rows for managers in THIS quarter
+        SELECT
+          cik,
+          period_end::date AS period_end,
+          total_value_m
+        FROM manager_quarter
+        WHERE cik IN (SELECT DISTINCT cik FROM cur)
       ),
       prev AS (
         SELECT cik, total_value_m AS prev_qtr
         FROM base
-        WHERE period_end = ($1::date - INTERVAL '3 months')::date
+        WHERE period_end = ($1::date - INTERVAL '3 months')
       ),
       yoy AS (
         SELECT cik, total_value_m AS prev_yoy
         FROM base
-        WHERE period_end = ($1::date - INTERVAL '12 months')::date
-      ),
-      y5 AS (
-        SELECT cik, total_value_m AS prev_5y
-        FROM base
-        WHERE period_end = ($1::date - INTERVAL '60 months')::date
-      ),
-      y10 AS (
-        SELECT cik, total_value_m AS prev_10y
-        FROM base
-        WHERE period_end = ($1::date - INTERVAL '120 months')::date
+        WHERE period_end = ($1::date - INTERVAL '12 months')
       )
       SELECT
         cur.cik,
@@ -119,16 +124,12 @@ export default async function handler(req, res) {
         cur.total_value_m,
         cur.num_holdings,
         prev.prev_qtr,
-        yoy.prev_yoy,
-        y5.prev_5y,
-        y10.prev_10y
+        yoy.prev_yoy
       FROM cur
       LEFT JOIN prev USING (cik)
       LEFT JOIN yoy USING (cik)
-      LEFT JOIN y5 USING (cik)
-      LEFT JOIN y10 USING (cik)
       ORDER BY cur.total_value_m DESC
-      LIMIT 5000;
+      LIMIT 2000;
     `;
 
     const { rows } = await getPool().query(sql, [qEnd]);
@@ -165,6 +166,9 @@ export default async function handler(req, res) {
     if (!types.has("all")) {
       out = out.filter((r) => types.has(r.category));
     }
+
+    // 🔥 ADD THIS (SAVE TO CACHE)
+    CACHE[cacheKey] = { ts: Date.now(), data: out };
 
     return res.status(200).json(out);
   } catch (e) {
