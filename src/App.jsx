@@ -13,10 +13,8 @@ import {
 import Chart from "react-apexcharts";  // ⬅️ NEW
 import HedgeFundTable from "./HedgeFundTable.jsx";
 
-const API_BASE =
-  process.env.NODE_ENV === "production"
-    ? "https://stock-analyzer-frontend-cxem.vercel.app"
-    : "";
+// ✅ Always call the same deployment (same-origin)
+const API_BASE = "";
 
 // master list + default active + max
 const ALL_SYMBOLS = [
