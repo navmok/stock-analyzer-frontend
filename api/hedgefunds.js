@@ -20,6 +20,7 @@ function pct(curr, prev) {
 export default async function handler(req, res) {
   try {
     const period = req.query.period || "2025Q3";
+    const category = String(req.query.category || "all").toLowerCase(); // NEW
     if (!/^\d{4}Q[1-4]$/.test(period)) {
       return res.status(400).json({ error: "period must be like 2025Q3" });
     }
@@ -35,9 +36,18 @@ export default async function handler(req, res) {
 
     const sql = `
       with base as (
-        select cik, manager_name, period_end, total_value_m, num_holdings
-        from manager_quarter
-        where period_end = $1::date
+        select
+          mq.cik,
+          mq.manager_name,
+          mq.period_end,
+          mq.total_value_m,
+          mq.num_holdings,
+          coalesce(mc.category, 'other') as category
+        from manager_quarter mq
+        left join manager_classification mc
+          on mc.cik = mq.cik
+        where mq.period_end = $1::date
+          and ($2::text = 'all' or coalesce(mc.category, 'other') = $2::text)
       ),
       prev as (
         select cik, total_value_m as prev_qtr
@@ -78,7 +88,7 @@ export default async function handler(req, res) {
       limit 1000;
     `;
 
-    const { rows } = await getPool().query(sql, [qEnd]);
+    const { rows } = await getPool().query(sql, [qEnd, category]);
 
     const out = rows.map((r) => {
       const curr = Number(r.total_value_m);
@@ -90,6 +100,7 @@ export default async function handler(req, res) {
       return {
         cik: r.cik,
         manager: r.manager_name,
+        category: r.category, // NEW
         period_end: r.period_end,
         aum_m: curr,
         num_holdings: Number(r.num_holdings),
