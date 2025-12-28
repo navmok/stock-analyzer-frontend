@@ -116,9 +116,30 @@ export default async function handler(req, res) {
     `;
 
     const db = getPool();
+    
+    // upsert quarterly values
     for (const r of rows) {
-      await db.query(sql, [r.cik, r.managerName, r.periodEnd, r.totalValueM, r.numHoldings]);
+    await db.query(sql, [
+        r.cik,
+        r.managerName,
+        r.periodEnd,
+        r.totalValueM,
+        r.numHoldings
+    ]);
     }
+
+    // 🔹 NEW: upsert classification
+    await db.query(
+    `
+    insert into manager_classification (cik, manager_name, category)
+    values ($1,$2,$3)
+    on conflict (cik) do update
+    set manager_name = excluded.manager_name,
+        category = excluded.category,
+        updated_at = now()
+    `,
+    [cik, managerName, category]
+    );
 
     return res.status(200).json({
       ok: true,
