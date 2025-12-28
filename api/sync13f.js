@@ -257,18 +257,22 @@ export default async function handler(req, res) {
           return r.text();
         });
 
-        const totalValue = extractTotalValueFromHtml(filingHtml);
-        if (!totalValue) {
-          console.warn(`Could not extract total value for ${accessionNum}`);
-          continue;
-        }
+        let totalValue = extractTotalValueFromHtml(filingHtml);
+        if (!totalValue) continue;
+
+        // ✅ Normalize to $ MILLIONS only when clearly in THOUSANDS
+        // Example: BeachPoint shows ~220,989 (thousands) => 220.989 (millions)
+        let totalValueM = totalValue;
+
+        // Heuristic: if it's >= 50,000 it's almost certainly "in thousands" not "in millions"
+        if (totalValueM >= 50000) totalValueM = totalValueM / 1000;
 
         rows.push({
           cik,
           manager_name: canonicalName,
           type: category,
           period_end: periodEnd,
-          aum: totalValue,
+          aum: totalValueM,
         });
       } catch (e) {
         console.warn(`Error processing filing:`, e.message);
