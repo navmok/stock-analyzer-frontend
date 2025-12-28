@@ -65,45 +65,150 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Provide cik as 10 digits, e.g. 0001595888" });
     }
 
-    const url = `https://13f.info/manager/${cik}`;
-    const html = await fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
-      return r.text();
-    });
-
-    const $ = cheerio.load(html);
-
-    // Manager name on the page header
-    const managerName = $("h1").first().text().trim() || cik;
+    // Step 1: Fetch manager info from SEC's JSON API
+    let managerName = cik;
     
-    // 🔹 NEW: classify manager
+    try {
+      const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
+      const submissionsData = await fetch(submissionsUrl).then((r) => {
+        if (!r.ok) throw new Error(`SEC submissions fetch failed: ${r.status}`);
+        return r.json();
+      });
+      
+      if (submissionsData.name) {
+        managerName = submissionsData.name;
+      }
+    } catch (e) {
+      console.warn(`Could not fetch manager name from SEC for ${cik}:`, e.message);
+      return res.status(500).json({ error: `Could not fetch manager from SEC: ${e.message}` });
+    }
+    
+    // 🔹 classify manager
     const category = classifyManager(managerName);
 
-    // Parse rows that look like: Q3 2025 | 10,653 | 657,114,981 | ...
+    // Step 2: Get 13F filings from SEC JSON API (more reliable than HTML parsing)
+    let filings = [];
+    try {
+      const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
+      const submissionsData = await fetch(submissionsUrl).then((r) => {
+        if (!r.ok) throw new Error(`SEC submissions fetch failed: ${r.status}`);
+        return r.json();
+      });
+      
+      if (submissionsData.filings?.recent?.filings) {
+        // Filter for 13F-HR and 13F/A forms
+        filings = submissionsData.filings.recent.filings
+          .filter(f => f.form === "13F-HR" || f.form === "13F/A")
+          .slice(0, 10); // Get last 10 filings
+      }
+    } catch (e) {
+      console.warn(`Could not fetch filings from SEC for ${cik}:`, e.message);
+      return res.status(500).json({ error: `Could not fetch 13F filings: ${e.message}` });
+    }
+
+    if (filings.length === 0) {
+      return res.status(500).json({ error: "No 13F filings found on SEC for this CIK." });
+    }
+
+    // Step 3: Process each filing to extract total value
     const rows = [];
-    $("table tr").each((_, tr) => {
-      const tds = $(tr).find("td");
-      if (tds.length < 3) return;
+    
+    for (const filing of filings) {
+      try {
+        const filingDate = filing.filingDate; // Format: YYYY-MM-DD
+        if (!filingDate) continue;
 
-      const quarter = $(tds[0]).text().trim();           // e.g. "Q3 2025"
-      const holdingsStr = $(tds[1]).text().trim();       // e.g. "10,653"
-      const valueStr = $(tds[2]).text().trim();          // e.g. "657,114,981"
+        // Determine quarter from filing date
+        const [year, month, day] = filingDate.split("-");
+        const m = Number(month);
+        const q = Math.floor((m - 1) / 3) + 1;
+        const quarterMonths = [3, 6, 9, 12];
+        const quarterDays = [31, 30, 30, 31];
+        const periodEnd = `${year}-${String(quarterMonths[q - 1]).padStart(2, "0")}-${String(quarterDays[q - 1]).padStart(2, "0")}`;
 
-      const periodEnd = quarterEndDate(quarter);
-      if (!periodEnd) return;
+        // Build URL to the filing
+        const accessionNum = filing.accessionNumber;
+        const accPath = accessionNum.replace(/-/g, "");
+        
+        // Try to fetch the XBRL instance document JSON
+        const xbrlUrl = `https://www.sec.gov/Archives/${filing.cikNumber.padStart(10, "0")}/${accPath}/${accessionNum}-xbrl.json`;
+        
+        let totalValueM = null;
 
-      const numHoldings = Number(holdingsStr.replace(/,/g, ""));
-      const value000 = Number(valueStr.replace(/,/g, "")); // value in $000 per page
-      if (!Number.isFinite(numHoldings) || !Number.isFinite(value000)) return;
+        // Method 1: Try to fetch XBRL JSON
+        try {
+          const xbrlData = await fetch(xbrlUrl).then(r => {
+            if (!r.ok) return null;
+            return r.json();
+          });
+          
+          if (xbrlData) {
+            // Look for the value in the XBRL structure
+            // The tag is typically "us-gaap:securitiesOwnedAggregateValue" or similar
+            for (const key in xbrlData) {
+              if (key.includes("securitiesOwned") || key.includes("AggregateValue")) {
+                const val = xbrlData[key];
+                if (typeof val === 'object' && val.value) {
+                  totalValueM = Number(val.value) / 1000; // Convert from thousands to millions
+                  break;
+                } else if (typeof val === 'number') {
+                  totalValueM = val / 1000;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`Could not fetch XBRL for ${accessionNum}:`, e.message);
+        }
 
-      // Store in $ millions for your app (because you’re already using total_value_m)
-      const totalValueM = value000 / 1000;
+        // Method 2: Fallback - fetch the HTML filing document and parse it
+        if (!totalValueM) {
+          try {
+            const filingHtmlUrl = `https://www.sec.gov/Archives/${filing.cikNumber.padStart(10, "0")}/${accPath}/${accessionNum}.txt`;
+            const filingText = await fetch(filingHtmlUrl).then(r => {
+              if (!r.ok) return null;
+              return r.text();
+            });
+            
+            if (filingText) {
+              // Look for "Aggregate Value of Holdings"
+              const match = filingText.match(/Aggregate\s+Value[\s\S]{0,200}?\$\s*([\d,]+(?:\.\d+)?)/i);
+              if (match) {
+                totalValueM = Number(match[1].replace(/,/g, "")) / 1000; // Convert thousands to millions
+              } else {
+                // Try alternate format
+                const altMatch = filingText.match(/confHoldValue[>\s]+([\d]+)/i);
+                if (altMatch) {
+                  totalValueM = Number(altMatch[1]) / 1000;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`Could not fetch filing text for ${accessionNum}:`, e.message);
+          }
+        }
 
-      rows.push({ cik, managerName, periodEnd, totalValueM, numHoldings });
-    });
+        // If we found a value, store it
+        if (totalValueM && totalValueM > 0) {
+          rows.push({
+            cik,
+            managerName,
+            periodEnd,
+            totalValueM,
+            numHoldings: null,
+          });
+        } else {
+          console.warn(`No value found for ${accessionNum} (${filingDate})`);
+        }
+      } catch (e) {
+        console.warn(`Error processing filing:`, e.message);
+        continue;
+      }
+    }
 
     if (rows.length === 0) {
-      return res.status(500).json({ error: "No rows parsed. Page layout may have changed." });
+      return res.status(500).json({ error: "Could not parse any 13F values from SEC filings." });
     }
 
     const sql = `
@@ -119,31 +224,31 @@ export default async function handler(req, res) {
     
     // upsert quarterly values
     for (const r of rows) {
-    await db.query(sql, [
+      await db.query(sql, [
         r.cik,
         r.managerName,
         r.periodEnd,
         r.totalValueM,
         r.numHoldings
-    ]);
+      ]);
     }
 
     // 🔹 NEW: upsert classification
     await db.query(
-    `
-    insert into manager_classification (cik, manager_name, category)
-    values ($1,$2,$3)
-    on conflict (cik) do update
-    set manager_name = excluded.manager_name,
-        category = excluded.category,
-        updated_at = now()
-    `,
-    [cik, managerName, category]
+      `
+      insert into manager_classification (cik, manager_name, category)
+      values ($1,$2,$3)
+      on conflict (cik) do update
+      set manager_name = excluded.manager_name,
+          category = excluded.category,
+          updated_at = now()
+      `,
+      [cik, managerName, category]
     );
 
     return res.status(200).json({
       ok: true,
-      source: url,
+      source: "SEC.gov EDGAR",
       manager: managerName,
       upserted_rows: rows.length,
       sample: rows.slice(0, 3),

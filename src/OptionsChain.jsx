@@ -468,23 +468,47 @@ export default function OptionsChain({
         .chk { display:flex; gap:8px; align-items:center; font-size: 0.85rem; }
         .opt-colpicker-actions { margin-top: 10px; display:flex; gap:8px; justify-content:flex-end; }
 
-        .opt-table-wrap { width: 100%; max-height: 600px; overflow-y: auto; border:1px solid #334155; border-radius: 12px; }
-        .opt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
-        .opt-table th, .opt-table td { padding: 8px 10px; border-bottom: 1px solid rgba(51,65,85,0.6); white-space: nowrap; box-sizing: border-box; }
+        /* Scrollable container for the table */
+        .opt-table-wrap {
+          width: 100%;
+          max-height: 600px; /* Fixed height for internal scrolling */
+          overflow-y: auto;
+          border: 1px solid #334155;
+          border-radius: 12px;
+          position: relative;
+        }
+
+        .opt-table {
+          width: 100%;
+          border-collapse: separate; /* Required for sticky headers to respect borders */
+          border-spacing: 0;
+          font-size: 0.85rem;
+        }
+
+        .opt-table th, .opt-table td {
+          padding: 8px 10px;
+          border-bottom: 1px solid rgba(51,65,85,0.6);
+          white-space: nowrap;
+          box-sizing: border-box;
+        }
+
+        /* 1st Header Row */
         .opt-table thead tr:nth-child(1) th {
           position: sticky;
           top: 0;
-          height: 40px;
-          background-color: #020617; /* Solid hex color for opacity */
-          z-index: 50;
+          height: 48px; /* Taller top row */
+          background-color: #020617;
+          z-index: 20;
           border-bottom: 1px solid #334155;
         }
+
+        /* 2nd Header Row */
         .opt-table thead tr:nth-child(2) th {
           position: sticky;
-          top: 40px;
-          height: 36px;
+          top: 48px; /* Starts exactly where row 1 ends */
+          height: 40px;
           background-color: #020617;
-          z-index: 40;
+          z-index: 10;
           border-bottom: 1px solid #334155;
         }
 
