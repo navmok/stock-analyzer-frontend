@@ -135,7 +135,7 @@ export default async function handler(req, res) {
     const { rows } = await getPool().query(sql, [qEnd]);
 
     let out = rows.map((r) => {
-      const curr_usd = r.total_value_m != null ? Number(r.total_value_m) : null;
+      const curr_usd = r.total_value_m != null ? Math.round(Number(r.total_value_m) * 1000) : null;
       const prevQ = r.prev_qtr != null ? Number(r.prev_qtr) : null;
       const prevY = r.prev_yoy != null ? Number(r.prev_yoy) : null;
       const prev5 = r.prev_5y != null ? Number(r.prev_5y) : null;
