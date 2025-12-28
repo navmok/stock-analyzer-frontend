@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import Chart from "react-apexcharts";  // ⬅️ NEW
 import HedgeFundTable from "./HedgeFundTable.jsx";
+import OptionsChain from "./OptionsChain.jsx";
 
 // ✅ Always call the same deployment (same-origin)
 const API_BASE = "";
@@ -821,6 +822,7 @@ const { callRows, putRows } = useMemo(() => {
   const rows = (optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
     symbol: optionsTabSymbol,
     ...o,
+    strike: o.strike != null ? o.strike / 100 : null,
   }));
 
   const filtered =
@@ -1374,14 +1376,39 @@ const { callRows, putRows } = useMemo(() => {
           </div>
         </div>
 
-{/* ==== OPTIONS TABLES (Calls & Puts) ==== */}
-<div className="table-wrapper">
-  <h2>
-    Options – Calls &amp; Puts{" "}
-    <span style={{ fontSize: "0.9rem", fontWeight: "normal" }}>
-      (Calls: {callRows.length} · Puts: {putRows.length})
-    </span>
-  </h2>
+        </div>
+
+  {/* ==== OPTIONS CHAIN (E*TRADE style) ==== */}
+  <div className="table-wrapper">
+    <OptionsChain
+      symbol={optionsTabSymbol}
+      options={(optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
+        ...o,
+        // normalize strike to dollars (Polygon often returns in cents)
+        strike: o.strike != null ? o.strike / 100 : null,
+        // normalize type to "C"/"P"
+        type:
+          String(o.type || "").toUpperCase().startsWith("P") ? "P" : "C",
+      }))}
+      expiration={selectedExpiry === "ALL" ? "" : selectedExpiry}
+      setExpiration={(exp) =>
+        setExpiryBySymbol((prev) => ({
+          ...prev,
+          [optionsTabSymbol]: exp || "ALL",
+        }))
+      }
+      expirations={expirationsForTab}
+      underlyingPrice={
+        (seriesBySymbol[optionsTabSymbol] || []).slice(-1)[0]?.close ?? null
+      }
+      // Optional (leave as null until you wire backend)
+      ivRank={null}
+      ivPercentile={null}
+    />
+  </div>
+
+        </>
+          )}
 
   {/* Tabs + Expiration dropdown */}
   <div
@@ -1476,7 +1503,7 @@ const { callRows, putRows } = useMemo(() => {
                         <tr key={idx}>
                           <td>{o.symbol}</td>
                           <td>{o.contractSymbol}</td>
-                          <td>{o.strike}</td>
+                          <td>${(o.strike / 100).toFixed(2)}</td>
                           <td>
                             {o.expiration
                               ? new Date(o.expiration).toLocaleDateString()
