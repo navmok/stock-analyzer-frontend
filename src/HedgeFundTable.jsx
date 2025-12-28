@@ -16,7 +16,9 @@ export default function HedgeFundTable() {
       setLoading(true);
       setErr("");
       try {
-        const r = await fetch(`/api/hedgefunds?period=${period}&category=${category}`);
+        const r = await fetch(
+          `/api/hedgefunds?period=${encodeURIComponent(period)}&category=${encodeURIComponent(category)}`
+        );
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "API error");
         if (!cancelled) setRows(j);
@@ -59,7 +61,8 @@ export default function HedgeFundTable() {
           <option value="other">Other</option>
         </select>
       </label>
-
+      </div>   {/* ← THIS WAS MISSING */}
+git add src/HedgeFundTable.jsx
       {err && <div style={{ color: "#fca5a5", marginBottom: 8 }}>{err}</div>}
       {loading ? (
         <div>Loading…</div>
