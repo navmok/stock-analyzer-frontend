@@ -11,6 +11,7 @@ import {
   Legend,
 } from "recharts";
 import Chart from "react-apexcharts";  // ⬅️ NEW
+import HedgeFundTable from "./HedgeFundTable";
 
 const API_BASE =
   process.env.NODE_ENV === "production"
@@ -856,9 +857,42 @@ const { callRows, putRows } = useMemo(() => {
     <div className="app">
       <header className="app-header">
         <h1>📈 Stock Dashboard (MVP)</h1>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("stocks")}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #4b5563",
+              background: activeTab === "stocks" ? "#2563eb" : "transparent",
+              color: "#e5e7eb",
+              cursor: "pointer",
+            }}
+          >
+            Stocks
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("hedgefunds")}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #4b5563",
+              background: activeTab === "hedgefunds" ? "#2563eb" : "transparent",
+              color: "#e5e7eb",
+              cursor: "pointer",
+            }}
+          >
+            Hedge Funds
+          </button>
+        </div>
       </header>
 
-      <section className="controls">
+      {activeTab === "stocks" && (
+        <section className="controls">
         {/* active symbols displayed as chips (max 5) */}
         <div className="control-group">
           <span className="control-label">Stocks in view</span>
@@ -976,7 +1010,8 @@ const { callRows, putRows } = useMemo(() => {
             <span className="error">{optionsError}</span>
           </div>
         )}
-      </section>
+        </section>
+      )}
 
       {/* Moving average toggles */}
       <section className="ma-toggles">
@@ -1067,6 +1102,8 @@ const { callRows, putRows } = useMemo(() => {
       </section>
 
        <main>
+        {activeTab === "stocks" && (
+          <>
         {latest && (
           <div className="latest">
             <h2>Latest</h2>
@@ -1496,6 +1533,10 @@ const { callRows, putRows } = useMemo(() => {
               </div>
             )}
         </div>
+      </>
+        )}
+
+        {activeTab === "hedgefunds" && <HedgeFundTable />}
       </main>
     </div>
   );
