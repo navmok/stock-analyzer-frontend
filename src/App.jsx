@@ -1376,8 +1376,6 @@ const { callRows, putRows } = useMemo(() => {
           </div>
         </div>
 
-        </div>
-
   {/* ==== OPTIONS CHAIN (E*TRADE style) ==== */}
   <div className="table-wrapper">
     <OptionsChain
