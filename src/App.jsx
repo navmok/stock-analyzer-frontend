@@ -431,32 +431,32 @@ export default function App() {
   }, [activeSymbols, days]);
 
   useEffect(() => {
-  if (!activeSymbols.length) return;
-  setOptionsTabSymbol((prev) =>
-    activeSymbols.includes(prev) ? prev : activeSymbols[0]
-  );
-}, [activeSymbols]);
+    if (!activeSymbols.length) return;
+    setOptionsTabSymbol((prev) =>
+      activeSymbols.includes(prev) ? prev : activeSymbols[0]
+    );
+  }, [activeSymbols]);
 
   // AUTO-LOAD OPTIONS for newly added / re-added symbols
   useEffect(() => {
-  const missing = activeSymbols.filter((s) => !(s in optionsBySymbol));
-  if (missing.length > 0) loadOptionsForSymbols(missing);
-}, [activeSymbols]);
+    const missing = activeSymbols.filter((s) => !(s in optionsBySymbol));
+    if (missing.length > 0) loadOptionsForSymbols(missing);
+  }, [activeSymbols]);
 
   // Reset candlestick drill when user changes symbol or days
-useEffect(() => {
-  setCandleDrillLevel("year");
-  setDrillYear(null);
-  setDrillMonthKey(null);
-  setDrillWeekKey(null);
-  setDrillDayKey(null);
-}, [symbol, days]);
+  useEffect(() => {
+    setCandleDrillLevel("year");
+    setDrillYear(null);
+    setDrillMonthKey(null);
+    setDrillWeekKey(null);
+    setDrillDayKey(null);
+  }, [symbol, days]);
 
   // Round numeric values to 2 decimals
-function round2(v) {
-  if (v == null || isNaN(v)) return null;
-  return Number(v.toFixed(2));
-}
+  function round2(v) {
+    if (v == null || isNaN(v)) return null;
+    return Number(v.toFixed(2));
+  }
 
   // Format a UTC ISO timestamp into EST (New York) label for the candlestick x-axis
   function formatESTLabel(isoTs) {
@@ -473,271 +473,271 @@ function round2(v) {
   }
 
   // ISO week number (for Year → Month → Week drill)
-function getISOWeekNumber(d) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-  return weekNo;
-}
-
-// Group a row into a grain bucket (day/week/month/year)
-function getGrainBucket(row, grain) {
-  const d = new Date(row.ts_utc);
-  if (Number.isNaN(d.getTime())) return null;
-
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const week = getISOWeekNumber(d); // helper defined above
-  const dayLabel = row.timeLabel; // already formatted for small-day views
-
-  switch (grain) {
-    case "year": {
-      const key = `${year}`;
-      return { key, label: key, ts: d };
-    }
-    case "month": {
-      const key = `${year}-${String(month).padStart(2, "0")}`;
-      return { key, label: `${month}/${year}`, ts: d };
-    }
-    case "week": {
-      const key = `${year}-W${String(week).padStart(2, "0")}`;
-      return { key, label: `W${week} ${year}`, ts: d };
-    }
-    case "day":
-    default: {
-      const key = dayLabel;
-      return { key, label: dayLabel, ts: d };
-    }
+  function getISOWeekNumber(d) {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+    return weekNo;
   }
-}
 
-// Build candlestick OHLC buckets for a given drill level
-function buildCandlestickData(series, level, ctx = {}) {
-  if (!series || !series.length) return [];
+  // Group a row into a grain bucket (day/week/month/year)
+  function getGrainBucket(row, grain) {
+    const d = new Date(row.ts_utc);
+    if (Number.isNaN(d.getTime())) return null;
 
-  const groups = new Map();
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const week = getISOWeekNumber(d); // helper defined above
+    const dayLabel = row.timeLabel; // already formatted for small-day views
 
-  series.forEach((row) => {
-    const date = new Date(row.ts_utc);
-    if (Number.isNaN(date.getTime())) return;
-
-    const year = date.getFullYear();
-    const monthKey = `${year}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const weekKey = `${year}-W${String(getISOWeekNumber(date)).padStart(2, "0")}`;
-    const dayKey = date.toISOString().slice(0, 10);
-
-    // Filter by parent context
-    if (level === "month" && ctx.year && year !== ctx.year) return;
-    if (level === "week" && ctx.monthKey && monthKey !== ctx.monthKey) return;
-    if (level === "day" && ctx.weekKey && weekKey !== ctx.weekKey) return;
-    if (level === "minute" && ctx.dayKey && dayKey !== ctx.dayKey) return;
-
-    let bucketKey;
-    let label;
-
-    switch (level) {
-      case "year":
-        bucketKey = String(year);
-        label = bucketKey;
-        break;
-      case "month":
-        bucketKey = monthKey;            // e.g. 2025-05
-        label = monthKey;
-        break;
-      case "week":
-        bucketKey = weekKey;             // e.g. 2025-W18
-        label = weekKey;
-        break;
+    switch (grain) {
+      case "year": {
+        const key = `${year}`;
+        return { key, label: key, ts: d };
+      }
+      case "month": {
+        const key = `${year}-${String(month).padStart(2, "0")}`;
+        return { key, label: `${month}/${year}`, ts: d };
+      }
+      case "week": {
+        const key = `${year}-W${String(week).padStart(2, "0")}`;
+        return { key, label: `W${week} ${year}`, ts: d };
+      }
       case "day":
-        bucketKey = dayKey;              // e.g. 2025-05-06
-        label = dayKey;
-        break;
-      case "minute":
-        bucketKey = `${dayKey} ${date.toISOString().slice(11, 16)}`; // YYYY-MM-DD HH:MM
-        label = formatESTLabel(row.ts_utc); // nice EST label
-        break;
-      default:
-        bucketKey = dayKey;
-        label = dayKey;
-    }
-
-    const existing = groups.get(bucketKey);
-    if (!existing) {
-      groups.set(bucketKey, {
-        key: bucketKey,
-        label,
-        open: row.open,
-        high: row.high,
-        low: row.low,
-        close: row.close,
-        ts_utc: row.ts_utc,
-      });
-    } else {
-      existing.high = Math.max(existing.high, row.high);
-      existing.low = Math.min(existing.low, row.low);
-      // keep latest close / timestamp
-      if (new Date(row.ts_utc) >= new Date(existing.ts_utc)) {
-        existing.close = row.close;
-        existing.ts_utc = row.ts_utc;
+      default: {
+        const key = dayLabel;
+        return { key, label: dayLabel, ts: d };
       }
     }
-  });
+  }
 
-  const arr = Array.from(groups.values());
-  arr.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
+  // Build candlestick OHLC buckets for a given drill level
+  function buildCandlestickData(series, level, ctx = {}) {
+    if (!series || !series.length) return [];
 
-  return arr.map((d) => ({
-    x: d.label,
-    y: [
-      round2(d.open),
-      round2(d.high),
-      round2(d.low),
-      round2(d.close),
-    ],
-    drillKey: d.key,
-  }));
-}
+    const groups = new Map();
 
-// ----- Candlestick series with drill-down -----
-const candleSeries = useMemo(() => {
-  if (!symbol) return [];
+    series.forEach((row) => {
+      const date = new Date(row.ts_utc);
+      if (Number.isNaN(date.getTime())) return;
 
-  const series = seriesBySymbol[symbol] || [];
-  if (!series.length) return [];
+      const year = date.getFullYear();
+      const monthKey = `${year}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const weekKey = `${year}-W${String(getISOWeekNumber(date)).padStart(2, "0")}`;
+      const dayKey = date.toISOString().slice(0, 10);
 
-  const data = buildCandlestickData(series, candleDrillLevel, {
-    year: drillYear,
-    monthKey: drillMonthKey,
-    weekKey: drillWeekKey,
-    dayKey: drillDayKey,
-  });
+      // Filter by parent context
+      if (level === "month" && ctx.year && year !== ctx.year) return;
+      if (level === "week" && ctx.monthKey && monthKey !== ctx.monthKey) return;
+      if (level === "day" && ctx.weekKey && weekKey !== ctx.weekKey) return;
+      if (level === "minute" && ctx.dayKey && dayKey !== ctx.dayKey) return;
 
-  return [
-    {
-      name: symbol,
-      data,
-    },
-  ];
-}, [
-  seriesBySymbol,
-  symbol,
-  candleDrillLevel,
-  drillYear,
-  drillMonthKey,
-  drillWeekKey,
-  drillDayKey,
-]);
+      let bucketKey;
+      let label;
+
+      switch (level) {
+        case "year":
+          bucketKey = String(year);
+          label = bucketKey;
+          break;
+        case "month":
+          bucketKey = monthKey;            // e.g. 2025-05
+          label = monthKey;
+          break;
+        case "week":
+          bucketKey = weekKey;             // e.g. 2025-W18
+          label = weekKey;
+          break;
+        case "day":
+          bucketKey = dayKey;              // e.g. 2025-05-06
+          label = dayKey;
+          break;
+        case "minute":
+          bucketKey = `${dayKey} ${date.toISOString().slice(11, 16)}`; // YYYY-MM-DD HH:MM
+          label = formatESTLabel(row.ts_utc); // nice EST label
+          break;
+        default:
+          bucketKey = dayKey;
+          label = dayKey;
+      }
+
+      const existing = groups.get(bucketKey);
+      if (!existing) {
+        groups.set(bucketKey, {
+          key: bucketKey,
+          label,
+          open: row.open,
+          high: row.high,
+          low: row.low,
+          close: row.close,
+          ts_utc: row.ts_utc,
+        });
+      } else {
+        existing.high = Math.max(existing.high, row.high);
+        existing.low = Math.min(existing.low, row.low);
+        // keep latest close / timestamp
+        if (new Date(row.ts_utc) >= new Date(existing.ts_utc)) {
+          existing.close = row.close;
+          existing.ts_utc = row.ts_utc;
+        }
+      }
+    });
+
+    const arr = Array.from(groups.values());
+    arr.sort((a, b) => new Date(a.ts_utc) - new Date(b.ts_utc));
+
+    return arr.map((d) => ({
+      x: d.label,
+      y: [
+        round2(d.open),
+        round2(d.high),
+        round2(d.low),
+        round2(d.close),
+      ],
+      drillKey: d.key,
+    }));
+  }
+
+  // ----- Candlestick series with drill-down -----
+  const candleSeries = useMemo(() => {
+    if (!symbol) return [];
+
+    const series = seriesBySymbol[symbol] || [];
+    if (!series.length) return [];
+
+    const data = buildCandlestickData(series, candleDrillLevel, {
+      year: drillYear,
+      monthKey: drillMonthKey,
+      weekKey: drillWeekKey,
+      dayKey: drillDayKey,
+    });
+
+    return [
+      {
+        name: symbol,
+        data,
+      },
+    ];
+  }, [
+    seriesBySymbol,
+    symbol,
+    candleDrillLevel,
+    drillYear,
+    drillMonthKey,
+    drillWeekKey,
+    drillDayKey,
+  ]);
 
   // ----- Candlestick chart options -----
-const candleOptions = useMemo(
-  () => ({
-    chart: {
-      type: "candlestick",
-      toolbar: {
-        show: true,
-      },
-      background: "transparent",
-      events: {
-        dataPointSelection: (event, chartContext, config) => {
-          const sIdx = config.seriesIndex;
-          const pIdx = config.dataPointIndex;
-          const point =
-            config?.w?.config?.series?.[sIdx]?.data?.[pIdx];
+  const candleOptions = useMemo(
+    () => ({
+      chart: {
+        type: "candlestick",
+        toolbar: {
+          show: true,
+        },
+        background: "transparent",
+        events: {
+          dataPointSelection: (event, chartContext, config) => {
+            const sIdx = config.seriesIndex;
+            const pIdx = config.dataPointIndex;
+            const point =
+              config?.w?.config?.series?.[sIdx]?.data?.[pIdx];
 
-          if (!point || !point.drillKey) return;
+            if (!point || !point.drillKey) return;
 
-          setCandleDrillLevel((prev) => {
-            if (prev === "year") {
-              setDrillYear(Number(point.drillKey));
-              return "month";
-            }
-            if (prev === "month") {
-              setDrillMonthKey(point.drillKey);
-              return "week";
-            }
-            if (prev === "week") {
-              setDrillWeekKey(point.drillKey);
-              return "day";
-            }
-            if (prev === "day") {
-              setDrillDayKey(point.drillKey);
-              return "minute";
-            }
-            return prev;
-          });
+            setCandleDrillLevel((prev) => {
+              if (prev === "year") {
+                setDrillYear(Number(point.drillKey));
+                return "month";
+              }
+              if (prev === "month") {
+                setDrillMonthKey(point.drillKey);
+                return "week";
+              }
+              if (prev === "week") {
+                setDrillWeekKey(point.drillKey);
+                return "day";
+              }
+              if (prev === "day") {
+                setDrillDayKey(point.drillKey);
+                return "minute";
+              }
+              return prev;
+            });
+          },
         },
       },
-    },
-    title: {
-      text: symbol
-        ? `${symbol} Candlestick – ${candleDrillLevel.toUpperCase()} view`
-        : `Candlestick – ${candleDrillLevel.toUpperCase()} view`,
-      align: "left",
-      style: {
-        fontSize: "14px",
-        fontWeight: 500,
-      },
-    },
-    // ⚠️ IMPORTANT: use category axis → removes gaps where there is no data
-    xaxis: {
-      type: "category",
-      tickAmount: 8, // you can tweak this
-      labels: {
-        rotate: -90,
-        trim: true,
-        hideOverlappingLabels: true,
+      title: {
+        text: symbol
+          ? `${symbol} Candlestick – ${candleDrillLevel.toUpperCase()} view`
+          : `Candlestick – ${candleDrillLevel.toUpperCase()} view`,
+        align: "left",
         style: {
-          fontSize: "10px",
+          fontSize: "14px",
+          fontWeight: 500,
         },
       },
-    },
-    yaxis: {
+      // ⚠️ IMPORTANT: use category axis → removes gaps where there is no data
+      xaxis: {
+        type: "category",
+        tickAmount: 8, // you can tweak this
+        labels: {
+          rotate: -90,
+          trim: true,
+          hideOverlappingLabels: true,
+          style: {
+            fontSize: "10px",
+          },
+        },
+      },
+      yaxis: {
+        tooltip: {
+          enabled: true,
+        },
+        labels: {
+          formatter: (val) =>
+            val == null || isNaN(val)
+              ? ""
+              : `$${Number(val).toFixed(2)}`,
+        },
+      },
+      plotOptions: {
+        candlestick: {
+          colors: {
+            upward: "#22c55e",
+            downward: "#ef4444",
+          },
+        },
+      },
       tooltip: {
-        enabled: true,
-      },
-      labels: {
-        formatter: (val) =>
-          val == null || isNaN(val)
-            ? ""
-            : `$${Number(val).toFixed(2)}`,
-      },
-    },
-    plotOptions: {
-      candlestick: {
-        colors: {
-          upward: "#22c55e",
-          downward: "#ef4444",
+        shared: true,
+        theme: "dark",
+        custom: function ({ seriesIndex, dataPointIndex, w }) {
+          // Get the point we plotted: { x, y: [open, high, low, close] }
+          const point =
+            w?.config?.series?.[seriesIndex]?.data?.[dataPointIndex];
+
+          if (!point || !Array.isArray(point.y)) return "";
+
+          const [open, high, low, close] = point.y;
+          const fmt = (v) => `$${Number(v).toFixed(2)}`;
+
+          return (
+            '<div class="apex-tooltip" style="background:#111827;color:#e5e7eb;padding:8px 10px;border-radius:4px;font-size:12px;">' +
+            `Open: <b>${fmt(open)}</b><br/>` +
+            `High: <b>${fmt(high)}</b><br/>` +
+            `Low: <b>${fmt(low)}</b><br/>` +
+            `Close: <b>${fmt(close)}</b>` +
+            "</div>"
+          );
         },
       },
-    },
-    tooltip: {
-      shared: true,
-      theme: "dark",
-      custom: function ({ seriesIndex, dataPointIndex, w }) {
-        // Get the point we plotted: { x, y: [open, high, low, close] }
-        const point =
-          w?.config?.series?.[seriesIndex]?.data?.[dataPointIndex];
-
-        if (!point || !Array.isArray(point.y)) return "";
-
-        const [open, high, low, close] = point.y;
-        const fmt = (v) => `$${Number(v).toFixed(2)}`;
-
-        return (
-          '<div class="apex-tooltip" style="background:#111827;color:#e5e7eb;padding:8px 10px;border-radius:4px;font-size:12px;">' +
-          `Open: <b>${fmt(open)}</b><br/>` +
-          `High: <b>${fmt(high)}</b><br/>` +
-          `Low: <b>${fmt(low)}</b><br/>` +
-          `Close: <b>${fmt(close)}</b>` +
-          "</div>"
-        );
-      },
-    },
-  }),
-  [symbol, candleDrillLevel]
-);
+    }),
+    [symbol, candleDrillLevel]
+  );
 
   // ----- Chart data: merge all active symbols into one timeline, aggregated by viewGrain -----
   const chartData = useMemo(() => {
@@ -818,35 +818,35 @@ const candleOptions = useMemo(
   }, [optionsBySymbol, optionsTabSymbol]);
 
   // ----- Options table rows: flatten active symbols -----
-const { callRows, putRows } = useMemo(() => {
-  const rows = (optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
-    symbol: optionsTabSymbol,
-    ...o,
-    strike: o.strike != null ? o.strike / 100 : null,
-  }));
+  const { callRows, putRows } = useMemo(() => {
+    const rows = (optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
+      symbol: optionsTabSymbol,
+      ...o,
+      strike: o.strike != null ? o.strike / 100 : null,
+    }));
 
-  const filtered =
-    selectedExpiry === "ALL"
-      ? rows
-      : rows.filter((r) => {
+    const filtered =
+      selectedExpiry === "ALL"
+        ? rows
+        : rows.filter((r) => {
           if (!r.expiration) return false;
           const d = new Date(r.expiration);
           if (Number.isNaN(d.getTime())) return false;
           return d.toISOString().slice(0, 10) === selectedExpiry;
         });
 
-  const calls = [];
-  const puts = [];
+    const calls = [];
+    const puts = [];
 
-  filtered.forEach((r) => {
-    const t = (r.type || "").toString().toUpperCase();
-    if (t === "CALL" || t === "C") calls.push(r);
-    else if (t === "PUT" || t === "P") puts.push(r);
-    else calls.push(r);
-  });
+    filtered.forEach((r) => {
+      const t = (r.type || "").toString().toUpperCase();
+      if (t === "CALL" || t === "C") calls.push(r);
+      else if (t === "PUT" || t === "P") puts.push(r);
+      else calls.push(r);
+    });
 
-  return { callRows: calls, putRows: puts };
-}, [optionsBySymbol, optionsTabSymbol, selectedExpiry]);
+    return { callRows: calls, putRows: puts };
+  }, [optionsBySymbol, optionsTabSymbol, selectedExpiry]);
 
   const latestSeries = seriesBySymbol[symbol] || [];
   const latest = latestSeries.length
@@ -891,125 +891,125 @@ const { callRows, putRows } = useMemo(() => {
         </div>
       </header>
 
-            {activeTab === "stocks" && (
+      {activeTab === "stocks" && (
         <section className="controls">
-        {/* active symbols displayed as chips (max 5) */}
-        <div className="control-group">
-          <span className="control-label">Stocks in view</span>
-          <div className="symbol-chips">
-            {activeSymbols.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="symbol-chip"
-                onClick={() => handleSelectSymbol(s)}
-                style={{
-                  background: s === symbol ? "#1d4ed8" : "#334155", // blue highlight
-                  color: "white",
-                  border: "none",
-                  padding: "6px 10px",
-                  borderRadius: "6px",
-                  marginRight: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                <span>{s}</span>
-                {activeSymbols.length > 1 && (
-                  <span
-                    className="chip-remove"
-                    onClick={(e) => {
-                      e.stopPropagation(); // don't also select
-                      handleRemoveSymbol(s);
-                    }}
-                  >
-                    ×
-                  </span>
-                )}
-              </button>
-            ))}
+          {/* active symbols displayed as chips (max 5) */}
+          <div className="control-group">
+            <span className="control-label">Stocks in view</span>
+            <div className="symbol-chips">
+              {activeSymbols.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="symbol-chip"
+                  onClick={() => handleSelectSymbol(s)}
+                  style={{
+                    background: s === symbol ? "#1d4ed8" : "#334155", // blue highlight
+                    color: "white",
+                    border: "none",
+                    padding: "6px 10px",
+                    borderRadius: "6px",
+                    marginRight: "8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span>{s}</span>
+                  {activeSymbols.length > 1 && (
+                    <span
+                      className="chip-remove"
+                      onClick={(e) => {
+                        e.stopPropagation(); // don't also select
+                        handleRemoveSymbol(s);
+                      }}
+                    >
+                      ×
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Add stock selector (adds, drops oldest if >5) */}
-        <div className="control">
-          <label>Add stock</label>
-          <select
-            value=""
-            onChange={(e) => {
-              handleAddSymbol(e.target.value);
-              e.target.value = "";
-            }}
+          {/* Add stock selector (adds, drops oldest if >5) */}
+          <div className="control">
+            <label>Add stock</label>
+            <select
+              value=""
+              onChange={(e) => {
+                handleAddSymbol(e.target.value);
+                e.target.value = "";
+              }}
+            >
+              <option value="">Choose…</option>
+              {ALL_SYMBOLS.filter((s) => !activeSymbols.includes(s)).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* View grain for second chart (like Google Calendar) */}
+          <div className="control">
+            <label>View</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["day", "week", "month", "year"].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setViewGrain(g)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: "1px solid #4b5563",
+                    background: viewGrain === g ? "#2563eb" : "transparent",
+                    color: "#e5e7eb",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  {g[0].toUpperCase() + g.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Days + buttons */}
+          <div className="control">
+            <label>Days</label>
+            <input
+              type="number"
+              min="1"
+              max="730"
+              value={days}
+              onChange={(e) => {
+                const d = Number(e.target.value || 1);
+                setDays(d);
+              }}
+            />
+          </div>
+
+          <button onClick={() => loadDataForSymbols()} disabled={loading}>
+            {loading ? "Loading..." : "Refresh Prices"}
+          </button>
+
+          <button
+            onClick={() => loadOptionsForSymbols()}
+            disabled={optionsLoading}
           >
-            <option value="">Choose…</option>
-            {ALL_SYMBOLS.filter((s) => !activeSymbols.includes(s)).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+            {optionsLoading ? "Loading options..." : "Load Options"}
+          </button>
 
-        {/* View grain for second chart (like Google Calendar) */}
-        <div className="control">
-          <label>View</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["day", "week", "month", "year"].map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setViewGrain(g)}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "1px solid #4b5563",
-                  background: viewGrain === g ? "#2563eb" : "transparent",
-                  color: "#e5e7eb",
-                  fontSize: "0.8rem",
-                  cursor: "pointer",
-                }}
-              >
-                {g[0].toUpperCase() + g.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Days + buttons */}
-        <div className="control">
-          <label>Days</label>
-          <input
-            type="number"
-            min="1"
-            max="730"
-            value={days}
-            onChange={(e) => {
-              const d = Number(e.target.value || 1);
-              setDays(d);
-            }}
-          />
-        </div>
-
-        <button onClick={() => loadDataForSymbols()} disabled={loading}>
-          {loading ? "Loading..." : "Refresh Prices"}
-        </button>
-
-        <button
-          onClick={() => loadOptionsForSymbols()}
-          disabled={optionsLoading}
-        >
-          {optionsLoading ? "Loading options..." : "Load Options"}
-        </button>
-
-        {error && (
-          <div className="status">
-            <span className="error">{error}</span>
-          </div>
-        )}
-        {optionsError && (
-          <div className="status">
-            <span className="error">{optionsError}</span>
-          </div>
-        )}
+          {error && (
+            <div className="status">
+              <span className="error">{error}</span>
+            </div>
+          )}
+          {optionsError && (
+            <div className="status">
+              <span className="error">{optionsError}</span>
+            </div>
+          )}
         </section>
       )}
 
@@ -1104,463 +1104,336 @@ const { callRows, putRows } = useMemo(() => {
         </section>
       )}
 
-       <main>
+      <main>
         {activeTab === "stocks" && (
           <>
-        {latest && (
-          <div className="latest">
-            <h2>Latest</h2>
-            <p>
-              <strong>{symbol}</strong> –{" "}
-              {new Date(latest.ts_utc).toLocaleString()} – Close:{" "}
-              <strong>${latest.close.toFixed(2)}</strong>
-            </p>
-          </div>
-        )}
-
-        {/* ==== NEW: CANDLESTICK CHART FOR PRIMARY SYMBOL ==== */}
-        <div className="chart-wrapper">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "4px",
-            }}
-          >
-            <h2>
-              {symbol ? `${symbol} Candlestick` : "Candlestick"} ·{" "}
-              {candleDrillLevel === "year"
-                ? "Year"
-                : candleDrillLevel === "month"
-                ? "Month"
-                : candleDrillLevel === "week"
-                ? "Week"
-                : candleDrillLevel === "day"
-                ? "Day"
-                : "Minute"}
-            </h2>
-
-            {candleDrillLevel !== "year" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCandleDrillLevel((prev) => {
-                    if (prev === "minute") {
-                      setDrillDayKey(null);
-                      return "day";
-                    }
-                    if (prev === "day") {
-                      setDrillWeekKey(null);
-                      return "week";
-                    }
-                    if (prev === "week") {
-                      setDrillMonthKey(null);
-                      return "month";
-                    }
-                    if (prev === "month") {
-                      setDrillYear(null);
-                      return "year";
-                    }
-                    return prev;
-                  });
-                }}
-                style={{
-                  fontSize: "0.8rem",
-                  padding: "4px 8px",
-                  borderRadius: "6px",
-                  border: "none",
-                  background: "#1f2937",
-                  color: "#e5e7eb",
-                  cursor: "pointer",
-                }}
-              >
-                Drill up
-              </button>
-            )}
-          </div>
-          <div className="chart-inner">
-            {candleSeries.length && candleSeries[0].data.length ? (
-              <Chart
-                options={candleOptions}
-                series={candleSeries}
-                type="candlestick"
-                height={350}
-                width="100%"
-              />
-            ) : (
-              <p>No candlestick data for the selected symbol.</p>
-            )}
-          </div>
-        </div>
-
-        {/* ==== MULTI-STOCK PRICE CHART ==== */}
-        <div className="chart-wrapper">
-          <h2>
-            Price (close) – {activeSymbols.join(", ")} ·{" "}
-            {viewGrain === "year"
-              ? "Year"
-              : viewGrain === "month"
-              ? "Month"
-              : viewGrain === "week"
-              ? "Week"
-              : "Day"}{" "}
-            view
-          </h2>
-          <div className="chart-inner">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="timeLabel"
-                  minTickGap={30}
-                  tick={{ fontSize: 10 }}
-                  angle={-90}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis
-                  tick={{ fontSize: 10 }}
-                  width={70}
-                  domain={["auto", "auto"]}
-                  tickFormatter={(value) => `$${value.toFixed(0)}`}
-                />
-                <Tooltip
-                  content={(tp) => (
-                    <CustomTooltip
-                      {...tp}
-                      activeSymbols={activeSymbols}
-                      showWeek={showWeek}
-                      show1M={show1M}
-                      show3M={show3M}
-                      show12M={show12M}
-                      showEma={showEma}
-                      showStd5={showStd5}
-                      showStd60={showStd60}
-                    />
-                  )}
-                />
-                <Legend />
-
-                {/* One Close line per active symbol */}
-                {activeSymbols.map((s, idx) => (
-                  <Line
-                    key={s}
-                    type="monotone"
-                    dataKey={`${s}_close`}
-                    name={`${s} Close`}
-                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-                    dot={false}
-                    strokeWidth={2}
-                    connectNulls
-                  />
-                ))}
-
-                {/* MAs/EMA for all active symbols */}
-                {showWeek &&
-                  activeSymbols.map((s, idx) => (
-                    <Line
-                      key={`${s}_maWeek`}
-                      type="monotone"
-                      dataKey={`${s}_maWeek`}
-                      name={`${s} Weekly MA`}
-                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-                      strokeDasharray="4 2"
-                      dot={false}
-                      strokeWidth={1.2}
-                      connectNulls
-                    />
-                  ))}
-
-                {show1M &&
-                  activeSymbols.map((s, idx) => (
-                    <Line
-                      key={`${s}_ma1M`}
-                      type="monotone"
-                      dataKey={`${s}_ma1M`}
-                      name={`${s} Month MA`}
-                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-                      strokeDasharray="4 2"
-                      dot={false}
-                      strokeWidth={1.2}
-                      connectNulls
-                    />
-                  ))}
-
-                {show3M &&
-                  activeSymbols.map((s, idx) => (
-                    <Line
-                      key={`${s}_ma3M`}
-                      type="monotone"
-                      dataKey={`${s}_ma3M`}
-                      name={`${s} Quarter MA`}
-                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-                      strokeDasharray="4 2"
-                      dot={false}
-                      strokeWidth={1.2}
-                      connectNulls
-                    />
-                  ))}
-
-                {show12M &&
-                  activeSymbols.map((s, idx) => (
-                    <Line
-                      key={`${s}_ma12M`}
-                      type="monotone"
-                      dataKey={`${s}_ma12M`}
-                      name={`${s} Year MA`}
-                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-                      strokeDasharray="4 2"
-                      dot={false}
-                      strokeWidth={1.2}
-                      connectNulls
-                    />
-                  ))}
-
-                {showEma &&
-                  activeSymbols.map((s, idx) => (
-                    <Line
-                      key={`${s}_ema`}
-                      type="monotone"
-                      dataKey={`${s}_ema`}
-                      name={`${s} EMA (20d)`}
-                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-                      strokeDasharray="4 2"
-                      dot={false}
-                      strokeWidth={1.2}
-                      connectNulls
-                    />
-                  ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* ==== PRICE TABLE (active symbols only) ==== */}
-        <div className="table-wrapper">
-          <h2>Data ({tableRows.length} rows)</h2>
-          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Time (UTC)</th>
-                  <th>Symbol</th>
-                  <th>Open</th>
-                  <th>High</th>
-                  <th>Low</th>
-                  <th>Close</th>
-                  <th>Volume</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((row, idx) => (
-                  <tr key={idx}>
-                    <td>{new Date(row.ts_utc).toLocaleString()}</td>
-                    <td>{row.symbol}</td>
-                    <td>${row.open.toFixed(2)}</td>
-                    <td>${row.high.toFixed(2)}</td>
-                    <td>${row.low.toFixed(2)}</td>
-                    <td>${row.close.toFixed(2)}</td>
-                    <td>{row.volume.toLocaleString()}</td>
-                  </tr>
-                ))}
-                {!tableRows.length && !loading && (
-                  <tr>
-                    <td colSpan="7" style={{ textAlign: "center" }}>
-                      No data
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-  {/* ==== OPTIONS CHAIN (E*TRADE style) ==== */}
-  <div className="table-wrapper">
-    <OptionsChain
-      symbol={optionsTabSymbol}
-      options={(optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
-        ...o,
-        // normalize strike to dollars (Polygon often returns in cents)
-        strike: o.strike != null ? o.strike / 100 : null,
-        // normalize type to "C"/"P"
-        type:
-          String(o.type || "").toUpperCase().startsWith("P") ? "P" : "C",
-      }))}
-      expiration={selectedExpiry === "ALL" ? "" : selectedExpiry}
-      setExpiration={(exp) =>
-        setExpiryBySymbol((prev) => ({
-          ...prev,
-          [optionsTabSymbol]: exp || "ALL",
-        }))
-      }
-      expirations={expirationsForTab}
-      underlyingPrice={
-        (seriesBySymbol[optionsTabSymbol] || []).slice(-1)[0]?.close ?? null
-      }
-      // Optional (leave as null until you wire backend)
-      ivRank={null}
-      ivPercentile={null}
-    />
-  </div>
-
-        </>
-          )}
-
-  {/* Tabs + Expiration dropdown */}
-  <div
-    style={{
-      display: "flex",
-      gap: 10,
-      alignItems: "center",
-      flexWrap: "wrap",
-      marginBottom: 8,
-    }}
-  >
-    {/* Symbol Tabs */}
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {activeSymbols.map((s) => (
-        <button
-          key={s}
-          type="button"
-          onClick={() => setOptionsTabSymbol(s)}
-          style={{
-            padding: "4px 10px",
-            borderRadius: 999,
-            border: "1px solid #4b5563",
-            background: optionsTabSymbol === s ? "#2563eb" : "transparent",
-            color: "#e5e7eb",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-          }}
-        >
-          {s}
-        </button>
-      ))}
-    </div>
-
-    {/* Expiration Dropdown */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>Expiration</span>
-              <select
-                value={selectedExpiry}
-                onChange={(e) =>
-                  setExpiryBySymbol((prev) => ({
-                    ...prev,
-                    [optionsTabSymbol]: e.target.value,
-                  }))
-                }
-              >
-                <option value="ALL">All</option>
-                {expirationsForTab.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {optionsLoading && <p>Loading options…</p>}
-
-          {!optionsLoading &&
-            callRows.length === 0 &&
-            putRows.length === 0 && <p>No options loaded.</p>}
-
-          {!optionsLoading &&
-            (callRows.length > 0 || putRows.length > 0) && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "16px",
-                  maxHeight: "400px",
-                  overflowY: "auto",
-                }}
-              >
-                {/* ===== CALLS ===== */}
-                <div>
-                  <h3>Calls ({callRows.length})</h3>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Symbol</th>
-                        <th>Contract</th>
-                        <th>Strike</th>
-                        <th>Expiry</th>
-                        <th>Last</th>
-                        <th>Bid</th>
-                        <th>Ask</th>
-                        <th>Volume</th>
-                        <th>Open Int</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {callRows.map((o, idx) => (
-                        <tr key={idx}>
-                          <td>{o.symbol}</td>
-                          <td>{o.contractSymbol}</td>
-                          <td>${(o.strike / 100).toFixed(2)}</td>
-                          <td>
-                            {o.expiration
-                              ? new Date(o.expiration).toLocaleDateString()
-                              : ""}
-                          </td>
-                          <td>{o.lastPrice}</td>
-                          <td>{o.bid}</td>
-                          <td>{o.ask}</td>
-                          <td>{o.volume}</td>
-                          <td>{o.openInterest}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* ===== PUTS ===== */}
-                <div>
-                  <h3>Puts ({putRows.length})</h3>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Symbol</th>
-                        <th>Contract</th>
-                        <th>Strike</th>
-                        <th>Expiry</th>
-                        <th>Last</th>
-                        <th>Bid</th>
-                        <th>Ask</th>
-                        <th>Volume</th>
-                        <th>Open Int</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {putRows.map((o, idx) => (
-                        <tr key={idx}>
-                          <td>{o.symbol}</td>
-                          <td>{o.contractSymbol}</td>
-                          <td>{o.strike}</td>
-                          <td>
-                            {o.expiration
-                              ? new Date(o.expiration).toLocaleDateString()
-                              : ""}
-                          </td>
-                          <td>{o.lastPrice}</td>
-                          <td>{o.bid}</td>
-                          <td>{o.ask}</td>
-                          <td>{o.volume}</td>
-                          <td>{o.openInterest}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {latest && (
+              <div className="latest">
+                <h2>Latest</h2>
+                <p>
+                  <strong>{symbol}</strong> –{" "}
+                  {new Date(latest.ts_utc).toLocaleString()} – Close:{" "}
+                  <strong>${latest.close.toFixed(2)}</strong>
+                </p>
               </div>
             )}
-        </div>
-      </>
+
+            {/* ==== NEW: CANDLESTICK CHART FOR PRIMARY SYMBOL ==== */}
+            <div className="chart-wrapper">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "4px",
+                }}
+              >
+                <h2>
+                  {symbol ? `${symbol} Candlestick` : "Candlestick"} ·{" "}
+                  {candleDrillLevel === "year"
+                    ? "Year"
+                    : candleDrillLevel === "month"
+                      ? "Month"
+                      : candleDrillLevel === "week"
+                        ? "Week"
+                        : candleDrillLevel === "day"
+                          ? "Day"
+                          : "Minute"}
+                </h2>
+
+                {candleDrillLevel !== "year" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCandleDrillLevel((prev) => {
+                        if (prev === "minute") {
+                          setDrillDayKey(null);
+                          return "day";
+                        }
+                        if (prev === "day") {
+                          setDrillWeekKey(null);
+                          return "week";
+                        }
+                        if (prev === "week") {
+                          setDrillMonthKey(null);
+                          return "month";
+                        }
+                        if (prev === "month") {
+                          setDrillYear(null);
+                          return "year";
+                        }
+                        return prev;
+                      });
+                    }}
+                    style={{
+                      fontSize: "0.8rem",
+                      padding: "4px 8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background: "#1f2937",
+                      color: "#e5e7eb",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Drill up
+                  </button>
+                )}
+              </div>
+              <div className="chart-inner">
+                {candleSeries.length && candleSeries[0].data.length ? (
+                  <Chart
+                    options={candleOptions}
+                    series={candleSeries}
+                    type="candlestick"
+                    height={350}
+                    width="100%"
+                  />
+                ) : (
+                  <p>No candlestick data for the selected symbol.</p>
+                )}
+              </div>
+            </div>
+
+            {/* ==== MULTI-STOCK PRICE CHART ==== */}
+            <div className="chart-wrapper">
+              <h2>
+                Price (close) – {activeSymbols.join(", ")} ·{" "}
+                {viewGrain === "year"
+                  ? "Year"
+                  : viewGrain === "month"
+                    ? "Month"
+                    : viewGrain === "week"
+                      ? "Week"
+                      : "Day"}{" "}
+                view
+              </h2>
+              <div className="chart-inner">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="timeLabel"
+                      minTickGap={30}
+                      tick={{ fontSize: 10 }}
+                      angle={-90}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      width={70}
+                      domain={["auto", "auto"]}
+                      tickFormatter={(value) => `$${value.toFixed(0)}`}
+                    />
+                    <Tooltip
+                      content={(tp) => (
+                        <CustomTooltip
+                          {...tp}
+                          activeSymbols={activeSymbols}
+                          showWeek={showWeek}
+                          show1M={show1M}
+                          show3M={show3M}
+                          show12M={show12M}
+                          showEma={showEma}
+                          showStd5={showStd5}
+                          showStd60={showStd60}
+                        />
+                      )}
+                    />
+                    <Legend />
+
+                    {/* One Close line per active symbol */}
+                    {activeSymbols.map((s, idx) => (
+                      <Line
+                        key={s}
+                        type="monotone"
+                        dataKey={`${s}_close`}
+                        name={`${s} Close`}
+                        stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                        dot={false}
+                        strokeWidth={2}
+                        connectNulls
+                      />
+                    ))}
+
+                    {/* MAs/EMA for all active symbols */}
+                    {showWeek &&
+                      activeSymbols.map((s, idx) => (
+                        <Line
+                          key={`${s}_maWeek`}
+                          type="monotone"
+                          dataKey={`${s}_maWeek`}
+                          name={`${s} Weekly MA`}
+                          stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                          strokeDasharray="4 2"
+                          dot={false}
+                          strokeWidth={1.2}
+                          connectNulls
+                        />
+                      ))}
+
+                    {show1M &&
+                      activeSymbols.map((s, idx) => (
+                        <Line
+                          key={`${s}_ma1M`}
+                          type="monotone"
+                          dataKey={`${s}_ma1M`}
+                          name={`${s} Month MA`}
+                          stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                          strokeDasharray="4 2"
+                          dot={false}
+                          strokeWidth={1.2}
+                          connectNulls
+                        />
+                      ))}
+
+                    {show3M &&
+                      activeSymbols.map((s, idx) => (
+                        <Line
+                          key={`${s}_ma3M`}
+                          type="monotone"
+                          dataKey={`${s}_ma3M`}
+                          name={`${s} Quarter MA`}
+                          stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                          strokeDasharray="4 2"
+                          dot={false}
+                          strokeWidth={1.2}
+                          connectNulls
+                        />
+                      ))}
+
+                    {show12M &&
+                      activeSymbols.map((s, idx) => (
+                        <Line
+                          key={`${s}_ma12M`}
+                          type="monotone"
+                          dataKey={`${s}_ma12M`}
+                          name={`${s} Year MA`}
+                          stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                          strokeDasharray="4 2"
+                          dot={false}
+                          strokeWidth={1.2}
+                          connectNulls
+                        />
+                      ))}
+
+                    {showEma &&
+                      activeSymbols.map((s, idx) => (
+                        <Line
+                          key={`${s}_ema`}
+                          type="monotone"
+                          dataKey={`${s}_ema`}
+                          name={`${s} EMA (20d)`}
+                          stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                          strokeDasharray="4 2"
+                          dot={false}
+                          strokeWidth={1.2}
+                          connectNulls
+                        />
+                      ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* ==== PRICE TABLE (active symbols only) ==== */}
+
+
+            <div className="table-wrapper">
+
+              <h2>Data ({tableRows.length} rows)</h2>
+              <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Time (UTC)</th>
+                      <th>Symbol</th>
+                      <th>Open</th>
+                      <th>High</th>
+                      <th>Low</th>
+                      <th>Close</th>
+                      <th>Volume</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map((row, idx) => (
+                      <tr key={idx}>
+                        <td>{new Date(row.ts_utc).toLocaleString()}</td>
+                        <td>{row.symbol}</td>
+                        <td>${row.open.toFixed(2)}</td>
+                        <td>${row.high.toFixed(2)}</td>
+                        <td>${row.low.toFixed(2)}</td>
+                        <td>${row.close.toFixed(2)}</td>
+                        <td>{row.volume.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {!tableRows.length && !loading && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: "center" }}>
+                          No data
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ==== OPTIONS CHAIN (E*TRADE style) ==== */}
+            {/* Symbol Tabs for Options */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {activeSymbols.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setOptionsTabSymbol(s)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: "1px solid #4b5563",
+                    background: optionsTabSymbol === s ? "#2563eb" : "transparent",
+                    color: "#e5e7eb",
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            <div className="table-wrapper">
+              <OptionsChain
+                symbol={optionsTabSymbol}
+                options={(optionsBySymbol[optionsTabSymbol] || []).map((o) => ({
+                  ...o,
+                  // normalize strike to dollars (Polygon often returns in cents)
+                  strike: o.strike != null ? o.strike / 100 : null,
+                  // normalize type to "C"/"P"
+                  type:
+                    String(o.type || "").toUpperCase().startsWith("P") ? "P" : "C",
+                }))}
+                expiration={selectedExpiry === "ALL" ? "" : selectedExpiry}
+                setExpiration={(exp) =>
+                  setExpiryBySymbol((prev) => ({
+                    ...prev,
+                    [optionsTabSymbol]: exp || "ALL",
+                  }))
+                }
+                expirations={expirationsForTab}
+                underlyingPrice={
+                  (seriesBySymbol[optionsTabSymbol] || []).slice(-1)[0]?.close ?? null
+                }
+                // Optional (leave as null until you wire backend)
+                ivRank={null}
+                ivPercentile={null}
+              />
+            </div>
+
+          </>
         )}
+
+
 
         {activeTab === "hedgefunds" && <HedgeFundTable />}
       </main>
