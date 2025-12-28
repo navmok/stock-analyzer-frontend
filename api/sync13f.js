@@ -24,6 +24,40 @@ function quarterEndDate(qStr) {
   return `${y}-${end}`;
 }
 
+// 🔹 NEW: classify manager type (MVP rules)
+function classifyManager(nameRaw) {
+  const name = (nameRaw || "").toLowerCase();
+
+  // Banks / broker-dealers
+  const bankKeywords = [
+    "bank", "bancorp", "bancshares", "national association", "n.a.",
+    "jpmorgan", "jp morgan", "goldman", "morgan stanley", "citigroup", "citi",
+    "wells fargo", "bank of america", "bofa", "barclays", "hsbc", "ubs",
+    "credit suisse", "deutsche", "bnp", "societe generale", "nomura"
+  ];
+  if (bankKeywords.some(k => name.includes(k))) return "bank";
+
+  // Large asset managers
+  const assetMgrKeywords = [
+    "vanguard", "blackrock", "state street", "ssga", "fidelity",
+    "t. rowe", "t rowe", "invesco", "franklin", "capital group",
+    "american funds", "pimco", "alliancebernstein", "nuveen",
+    "principal", "dimensional", "dodge & cox", "dodge and cox"
+  ];
+  if (assetMgrKeywords.some(k => name.includes(k))) return "asset_manager";
+
+  // Hedge funds / trading firms (require 2+ signals)
+  const hedgeSignals = [
+    "capital management", "investment management", "investments",
+    "advisors", "adviser", "partners", "fund", "funds",
+    "quant", "trading", "group", "llc", "l.p.", "lp"
+  ];
+  const hits = hedgeSignals.filter(k => name.includes(k)).length;
+  if (hits >= 2) return "hedge_fund";
+
+  return "other";
+}
+
 export default async function handler(req, res) {
   try {
     const cik = (req.query.cik || "").trim();
@@ -41,6 +75,9 @@ export default async function handler(req, res) {
 
     // Manager name on the page header
     const managerName = $("h1").first().text().trim() || cik;
+    
+    // 🔹 NEW: classify manager
+    const category = classifyManager(managerName);
 
     // Parse rows that look like: Q3 2025 | 10,653 | 657,114,981 | ...
     const rows = [];
