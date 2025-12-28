@@ -64,14 +64,6 @@ export default async function handler(req, res) {
     const period = String(req.query.period || "2025Q3").trim();
     const qEnd = periodToQuarterEnd(period);
 
-    // 🔥 ADD THIS (CACHE CHECK)
-    const cacheKey = `${period}|${search}|${[...types].join(",")}`;
-    const cached = CACHE[cacheKey];
-    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-      return res.status(200).json(cached.data);
-    }
-    if (!qEnd) return res.status(400).json({ error: "Bad period. Use like 2025Q3." });
-
     const search = String(req.query.search || "").toLowerCase().trim();
 
     const typesParam = req.query.type;
@@ -79,6 +71,14 @@ export default async function handler(req, res) {
       (Array.isArray(typesParam) ? typesParam : typesParam ? [typesParam] : ["all"])
         .map((x) => String(x).toLowerCase())
     );
+
+    // NOW search exists ✅
+    const cacheKey = `${period}|${search}|${[...types].join(",")}`;
+    const cached = CACHE[cacheKey];
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      return res.status(200).json(cached.data);
+    }
+    if (!qEnd) return res.status(400).json({ error: "Bad period. Use like 2025Q3." });
 
     // ✅ IMPORTANT:
     // - Keep AUM as-is (do NOT divide by 1000 here)
