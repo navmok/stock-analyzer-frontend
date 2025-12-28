@@ -471,7 +471,19 @@ export default function OptionsChain({
         .opt-table-wrap { overflow:auto; border:1px solid #334155; border-radius: 12px; }
         .opt-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .opt-table th, .opt-table td { padding: 8px 10px; border-bottom: 1px solid rgba(51,65,85,0.6); white-space: nowrap; }
-        .opt-table thead th { position: sticky; top: 0; background: rgba(2,6,23,0.95); z-index: 2; }
+        .opt-table thead tr:nth-child(1) th {
+          position: sticky;
+          top: 0;
+          height: 38px;
+          background: rgba(2,6,23,0.95);
+          z-index: 10;
+        }
+        .opt-table thead tr:nth-child(2) th {
+          position: sticky;
+          top: 38px;
+          background: rgba(2,6,23,0.95);
+          z-index: 9;
+        }
 
         .side-head { text-align:center; font-weight: 800; border-bottom: 1px solid #334155; }
         .strike-head { text-align:center; font-weight: 800; cursor:pointer; border-bottom: 1px solid #334155; }
