@@ -149,10 +149,10 @@ export default async function handler(req, res) {
         aum_usd: curr_usd,                                // dollars (truth)
         aum_m: curr_usd != null ? curr_usd / 1_000_000 : null, // millions (for UI)
         num_holdings: r.num_holdings != null ? Number(r.num_holdings) : 0,
-        qoq_pct: curr != null ? pct(curr, prevQ) : null,
-        yoy_pct: curr != null ? pct(curr, prevY) : null,
-        pct_5y: curr != null ? pct(curr, prev5) : null,
-        pct_10y: curr != null ? pct(curr, prev10) : null,
+        qoq_pct: curr_usd != null ? pct(curr_usd, prevQ) : null,
+        yoy_pct: curr_usd != null ? pct(curr_usd, prevY) : null,
+        pct_5y: curr_usd != null ? pct(curr_usd, prev5) : null,
+        pct_10y: curr_usd != null ? pct(curr_usd, prev10) : null,
       };
     });
 
