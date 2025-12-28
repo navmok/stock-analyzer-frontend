@@ -135,7 +135,7 @@ export default async function handler(req, res) {
     const { rows } = await getPool().query(sql, [qEnd]);
 
     let out = rows.map((r) => {
-      const curr = r.total_value_m != null ? Number(r.total_value_m) : null;
+      const curr_usd = r.total_value_m != null ? Number(r.total_value_m) : null;
       const prevQ = r.prev_qtr != null ? Number(r.prev_qtr) : null;
       const prevY = r.prev_yoy != null ? Number(r.prev_yoy) : null;
       const prev5 = r.prev_5y != null ? Number(r.prev_5y) : null;
@@ -146,7 +146,8 @@ export default async function handler(req, res) {
         manager: r.manager_name,
         category: classifyManager(r.manager_name),
         period_end: r.period_end,
-        aum_m: curr, // ✅ unchanged (no scaling)
+        aum_usd: curr_usd,                                // dollars (truth)
+        aum_m: curr_usd != null ? curr_usd / 1_000_000 : null, // millions (for UI)
         num_holdings: r.num_holdings != null ? Number(r.num_holdings) : 0,
         qoq_pct: curr != null ? pct(curr, prevQ) : null,
         yoy_pct: curr != null ? pct(curr, prevY) : null,
