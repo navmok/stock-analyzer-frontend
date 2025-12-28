@@ -891,7 +891,7 @@ const { callRows, putRows } = useMemo(() => {
         </div>
       </header>
 
-      {activeTab === "stocks" && (
+            {activeTab === "stocks" && (
         <section className="controls">
         {/* active symbols displayed as chips (max 5) */}
         <div className="control-group">
@@ -1014,92 +1014,95 @@ const { callRows, putRows } = useMemo(() => {
       )}
 
       {/* Moving average toggles */}
-      <section className="ma-toggles">
-        <div className="ma-toggle-group">
-          <label className="ma-toggle">
-            <span>Weekly MA</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={showWeek}
-                onChange={(e) => setShowWeek(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-          </label>
-
-          <label className="ma-toggle">
-            <span>Month MA</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={show1M}
-                onChange={(e) => setShow1M(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-          </label>
-
-          <label className="ma-toggle">
-            <span>Quarter MA</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={show3M}
-                onChange={(e) => setShow3M(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-          </label>
-
-          <label className="ma-toggle">
-            <span>Year MA</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={show12M}
-                onChange={(e) => setShow12M(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-          </label>
-
-          <label className="ma-toggle">
-            <span>EMA (20d)</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={showEma}
-                onChange={(e) => setShowEma(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-          </label>
+      {activeTab === "stocks" && (
+        <section className="ma-toggles">
+          <div className="ma-toggle-group">
             <label className="ma-toggle">
-            <span>σ5 (std dev)</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={showStd5}
-                onChange={(e) => setShowStd5(e.target.checked)}
-              />
-              <span className="slider"></span>
+              <span>Weekly MA</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={showWeek}
+                  onChange={(e) => setShowWeek(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
             </label>
-          </label>
 
-          <label className="ma-toggle">
-            <span>σ60 (std dev)</span>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={showStd60}
-                onChange={(e) => setShowStd60(e.target.checked)}
-              />
-              <span className="slider"></span>
+            <label className="ma-toggle">
+              <span>Month MA</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={show1M}
+                  onChange={(e) => setShow1M(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
             </label>
-          </label>
-        </div>
-      </section>
+
+            <label className="ma-toggle">
+              <span>Quarter MA</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={show3M}
+                  onChange={(e) => setShow3M(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+            </label>
+
+            <label className="ma-toggle">
+              <span>Year MA</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={show12M}
+                  onChange={(e) => setShow12M(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+            </label>
+
+            <label className="ma-toggle">
+              <span>EMA (20d)</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={showEma}
+                  onChange={(e) => setShowEma(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+            </label>
+
+            <label className="ma-toggle">
+              <span>σ5 (std dev)</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={showStd5}
+                  onChange={(e) => setShowStd5(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+            </label>
+
+            <label className="ma-toggle">
+              <span>σ60 (std dev)</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={showStd60}
+                  onChange={(e) => setShowStd60(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+            </label>
+          </div>
+        </section>
+      )}
 
        <main>
         {activeTab === "stocks" && (
