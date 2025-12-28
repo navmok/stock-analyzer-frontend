@@ -20,19 +20,18 @@ function classifyManager(nameRaw) {
     "BANK", "BANC", "JPMORGAN", "CHASE", "WELLS FARGO", "CITIGROUP",
     "MORGAN STANLEY", "GOLDMAN SACHS", "BNY", "BANK OF AMERICA",
     "BARCLAYS", "UBS", "HSBC", "CREDIT SUISSE", "ROYAL BANK", "TD ",
-    "STATE STREET"
+    "STATE STREET",
   ];
 
   const assetKW = [
     "VANGUARD", "BLACKROCK", "FIDELITY", "SCHWAB", "INVESCO",
     "T ROWE", "T. ROWE", "FRANKLIN", "DIMENSIONAL", "PIMCO",
-    "CAPITAL GROUP", "WELLINGTON", "AMUNDI", "NORTHERN TRUST"
+    "CAPITAL GROUP", "WELLINGTON", "AMUNDI", "NORTHERN TRUST",
   ];
 
   if (bankKW.some((k) => name.includes(k))) return "bank";
   if (assetKW.some((k) => name.includes(k))) return "asset_manager";
 
-  // default most “MANAGEMENT / CAPITAL / PARTNERS / ADVISORS / FUND” to hedge funds
   const hfKW = ["CAPITAL", "MANAGEMENT", "PARTNERS", "ADVISORS", "FUND", "INVEST"];
   if (hfKW.some((k) => name.includes(k))) return "hedge_fund";
 
@@ -48,12 +47,14 @@ function parsePeriod(periodStr) {
   // expects "2025Q3"
   const m = String(periodStr || "").match(/^(\d{4})Q([1-4])$/i);
   if (!m) return null;
+
   const year = Number(m[1]);
   const q = Number(m[2]);
-  const endMonth = q * 3;          // Q1->3, Q2->6, Q3->9, Q4->12
+
+  const endMonth = q * 3; // Q1->3, Q2->6, Q3->9, Q4->12
   const endDay = endMonth === 3 || endMonth === 12 ? 31 : 30;
-  const qEnd = new Date(Date.UTC(year, endMonth - 1, endDay));
-  return qEnd;
+
+  return new Date(Date.UTC(year, endMonth - 1, endDay));
 }
 
 export default async function handler(req, res) {
@@ -74,55 +75,48 @@ export default async function handler(req, res) {
     }
     const qEnd = qEndDate.toISOString().slice(0, 10); // YYYY-MM-DD
 
+    // ✅ Robust percent calcs: use lag() across available quarters, not date subtraction joins
+    // Also ✅ De-dupe in case old/duplicate rows exist for same cik+period_end
     const sql = `
-      with base as (
-        select cik, manager_name, period_end, total_value_m, num_holdings
-        from manager_quarter
-        where period_end = $1::date
+      WITH dedup AS (
+        SELECT
+          cik,
+          MAX(manager_name) AS manager_name,
+          period_end::date AS period_end,
+          MAX(total_value_m)::double precision AS total_value_m,
+          MAX(num_holdings)::int AS num_holdings
+        FROM manager_quarter
+        GROUP BY cik, period_end::date
       ),
-      prev as (
-        select cik, total_value_m as prev_qtr
-        from manager_quarter
-        where period_end = ($1::date - interval '3 months')::date
-      ),
-      yoy as (
-        select cik, total_value_m as prev_yoy
-        from manager_quarter
-        where period_end = ($1::date - interval '12 months')::date
-      ),
-      y5 as (
-        select cik, total_value_m as prev_5y
-        from manager_quarter
-        where period_end = ($1::date - interval '60 months')::date
-      ),
-      y10 as (
-        select cik, total_value_m as prev_10y
-        from manager_quarter
-        where period_end = ($1::date - interval '120 months')::date
+      ranked AS (
+        SELECT
+          d.*,
+          LAG(total_value_m, 1)  OVER (PARTITION BY cik ORDER BY period_end) AS prev_qtr,
+          LAG(total_value_m, 4)  OVER (PARTITION BY cik ORDER BY period_end) AS prev_yoy,
+          LAG(total_value_m, 20) OVER (PARTITION BY cik ORDER BY period_end) AS prev_5y,
+          LAG(total_value_m, 40) OVER (PARTITION BY cik ORDER BY period_end) AS prev_10y
+        FROM dedup d
       )
-      select
-        b.cik,
-        b.manager_name,
-        b.period_end,
-        b.total_value_m,
-        b.num_holdings,
-        p.prev_qtr,
-        y.prev_yoy,
-        f.prev_5y,
-        t.prev_10y
-      from base b
-      left join prev p using (cik)
-      left join yoy y using (cik)
-      left join y5 f using (cik)
-      left join y10 t using (cik)
-      order by b.total_value_m desc
-      limit 5000;
+      SELECT
+        cik,
+        manager_name,
+        period_end,
+        total_value_m,
+        num_holdings,
+        prev_qtr,
+        prev_yoy,
+        prev_5y,
+        prev_10y
+      FROM ranked
+      WHERE period_end = $1::date
+      ORDER BY total_value_m DESC
+      LIMIT 5000;
     `;
 
     const { rows } = await getPool().query(sql, [qEnd]);
 
     let out = rows.map((r) => {
-      const curr = Number(r.total_value_m);
+      const curr = r.total_value_m !== null ? Number(r.total_value_m) : null;
       const prevQ = r.prev_qtr !== null ? Number(r.prev_qtr) : null;
       const prevY = r.prev_yoy !== null ? Number(r.prev_yoy) : null;
       const prev5 = r.prev_5y !== null ? Number(r.prev_5y) : null;
@@ -136,11 +130,11 @@ export default async function handler(req, res) {
         category,
         period_end: r.period_end,
         aum_m: curr,
-        num_holdings: Number(r.num_holdings),
-        qoq_pct: pct(curr, prevQ),
-        yoy_pct: pct(curr, prevY),
-        pct_5y: pct(curr, prev5),
-        pct_10y: pct(curr, prev10),
+        num_holdings: r.num_holdings != null ? Number(r.num_holdings) : 0,
+        qoq_pct: curr != null ? pct(curr, prevQ) : null,
+        yoy_pct: curr != null ? pct(curr, prevY) : null,
+        pct_5y: curr != null ? pct(curr, prev5) : null,
+        pct_10y: curr != null ? pct(curr, prev10) : null,
       };
     });
 
