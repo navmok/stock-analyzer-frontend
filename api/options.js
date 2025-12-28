@@ -1,118 +1,41 @@
-// pages/api/options.js (Next.js API route)
+// api/options.js
 // Polygon Options Chain Snapshot (paid plan) implementation.
 // Docs: GET /v3/snapshot/options/{underlyingAsset}
 
-function buildMockOptions(symbol) {
-  const baseStrike = 300;
-  const options = [];
-
-  for (let i = -5; i <= 5; i++) {
-    const strike = baseStrike + i * 5;
-    const absI = Math.abs(i);
-
-    options.push({
-      contractSymbol: symbol + "C" + strike,
-      type: "C",
-      strike: strike,
-      lastPrice: 10 - absI,
-      bid: 9 - absI,
-      ask: 11 - absI,
-      volume: 1000 - absI * 50,
-      openInterest: 5000 - absI * 200,
-      expiration: "2026-01-16T00:00:00Z",
-      inTheMoney: i < 0,
-      impliedVolatility: null,
-      delta: null,
-      gamma: null,
-      theta: null,
-      vega: null,
-      rho: null,
-    });
-
-    options.push({
-      contractSymbol: symbol + "P" + strike,
-      type: "P",
-      strike: strike,
-      lastPrice: 10 - absI,
-      bid: 9 - absI,
-      ask: 11 - absI,
-      volume: 900 - absI * 50,
-      openInterest: 4500 - absI * 200,
-      expiration: "2026-01-16T00:00:00Z",
-      inTheMoney: i > 0,
-      impliedVolatility: null,
-      delta: null,
-      gamma: null,
-      theta: null,
-      vega: null,
-      rho: null,
-    });
-  }
-
-  return options;
-}
-
-function toIsoDateMaybe(v) {
-  if (!v) return null;
-  if (typeof v === "number") return new Date(v).toISOString();
-  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v + "T00:00:00Z";
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-function pickNumber(...vals) {
-  for (const v of vals) {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-  }
-  return null;
+function pickNumber(x) {
+  if (x === null || x === undefined) return null;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
 }
 
 function mapPolygonContract(r) {
+  // Polygon snapshot results structure varies slightly; keep mapping defensive.
   const details = r?.details || {};
-  const ct = (details?.contract_type || details?.contractType || "").toLowerCase();
-  const type = ct === "call" ? "C" : ct === "put" ? "P" : null;
-
-  const lastTrade = r?.last_trade || r?.lastTrade || {};
-  const lastQuote = r?.last_quote || r?.lastQuote || {};
   const day = r?.day || {};
-
-  const lastPrice = pickNumber(
-    lastTrade?.price, lastTrade?.p,
-    day?.close, day?.c,
-    r?.last_price, r?.lastPrice
-  );
-
-  const bid = pickNumber(lastQuote?.bid, lastQuote?.bid_price, lastQuote?.p, lastQuote?.bp);
-  const ask = pickNumber(lastQuote?.ask, lastQuote?.ask_price, lastQuote?.ap);
-
-  const volume = pickNumber(day?.volume, day?.v, r?.volume);
-  const openInterest = pickNumber(r?.open_interest, r?.openInterest);
-
-  const strike = pickNumber(details?.strike_price, details?.strikePrice, r?.strike_price, r?.strike);
-
-  const contractSymbol = details?.ticker || details?.ticker_symbol || details?.tickerSymbol || r?.ticker;
-
-  const expiration = toIsoDateMaybe(details?.expiration_date || details?.expirationDate || r?.expiration_date);
-
+  const lastQuote = r?.last_quote || {};
   const greeks = r?.greeks || {};
-  const impliedVolatility = pickNumber(
-    r?.implied_volatility,
-    r?.iv,
-    greeks?.implied_volatility
-  );
+  const underlying = r?.underlying_asset || {};
+
+  // Prefer Polygon’s own ticker if present (ex: O:RIOT250117C00015000)
+  const contractSymbol = details?.ticker || r?.ticker || null;
 
   return {
-    contractSymbol: contractSymbol || null,
-    type: type || null, // "C" or "P"
-    strike: strike ?? null,
-    lastPrice: lastPrice ?? null,
-    bid: bid ?? null,
-    ask: ask ?? null,
-    volume: volume ?? null,
-    openInterest: openInterest ?? null,
-    expiration,
-    inTheMoney: r?.in_the_money ?? r?.inTheMoney ?? null,
-    impliedVolatility: impliedVolatility ?? null,
+    contractSymbol,
+    type: details?.contract_type === "call" ? "C" : details?.contract_type === "put" ? "P" : null,
+    strike: pickNumber(details?.strike_price) ?? null,
+    lastPrice: pickNumber(day?.close) ?? null,
+    bid: pickNumber(lastQuote?.bid) ?? null,
+    ask: pickNumber(lastQuote?.ask) ?? null,
+    volume: pickNumber(day?.volume) ?? null,
+    openInterest: pickNumber(r?.open_interest) ?? null,
+    expiration: details?.expiration_date ?? null,
+    impliedVolatility: pickNumber(r?.implied_volatility) ?? null,
+
+    // Underlying (optional)
+    underlyingSymbol: underlying?.ticker ?? null,
+    underlyingPrice: pickNumber(underlying?.price) ?? null,
+
+    // Greeks (optional)
     delta: pickNumber(greeks?.delta) ?? null,
     gamma: pickNumber(greeks?.gamma) ?? null,
     theta: pickNumber(greeks?.theta) ?? null,
@@ -129,48 +52,71 @@ async function fetchPolygonChain({ symbol, apiKey, contractType, expirationDate,
 
   // Optional filters supported by Polygon:
   if (contractType) qs.set("contract_type", contractType); // "call" | "put"
-  if (expirationDate) qs.set("expiration_date", expirationDate); // YYYY-MM-DD
+  if (expirationDate) qs.set("expiration_date", expirationDate); // "YYYY-MM-DD"
 
-  const url = `${base}?${qs.toString()}`;
+  // Add a timeout so Vercel functions don't hang forever
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
-  const r = await fetch(url);
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`Polygon HTTP ${r.status}: ${txt?.slice(0, 300)}`);
+  try {
+    const url = `${base}?${qs.toString()}`;
+    const resp = await fetch(url, { signal: controller.signal });
+
+    const text = await resp.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+
+    if (!resp.ok) {
+      // Bubble up Polygon error details (very useful for plan/permission issues)
+      const msg = `Polygon error ${resp.status} ${resp.statusText}: ${text?.slice(0, 500) || ""}`;
+      const err = new Error(msg);
+      err.status = resp.status;
+      throw err;
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return r.json();
 }
 
 export default async function handler(req, res) {
-  const symbol = (req.query?.symbol || "GOOGL").toUpperCase();
-  const useMock = req.query?.mock === "1"; // optional: ?mock=1 to force mock
-  const expiration = req.query?.expiration || null; // optional: YYYY-MM-DD
+  // GET /api/options?symbol=RIOT&expiration=2026-01-16
+  const symbol = String(req.query?.symbol || "").trim().toUpperCase();
+  const expiration = req.query?.expiration ? String(req.query.expiration).trim() : null;
 
-  if (useMock) {
-    return res.status(200).json(buildMockOptions(symbol));
+  if (!symbol) {
+    return res.status(400).json({ error: "Missing required query param: symbol" });
   }
 
-  const apiKey = process.env.POLYGON_API_KEY || "";
-
+  const apiKey = String(process.env.POLYGON_API_KEY || "").trim();
   if (!apiKey) {
-    console.error("Missing POLYGON_API_KEY env var. Falling back to mock options.");
-    return res.status(200).json(buildMockOptions(symbol));
+    return res.status(500).json({
+      error:
+        "Missing POLYGON_API_KEY environment variable. Add it in Vercel → Project → Settings → Environment Variables, then redeploy.",
+    });
   }
 
   try {
-    // Grab both calls + puts (Polygon lets you filter by contract_type).
+    // Grab both calls + puts.
     const [callsJson, putsJson] = await Promise.all([
       fetchPolygonChain({ symbol, apiKey, contractType: "call", expirationDate: expiration, limit: 250 }),
       fetchPolygonChain({ symbol, apiKey, contractType: "put", expirationDate: expiration, limit: 250 }),
     ]);
 
-    const calls = (callsJson?.results || []).map(mapPolygonContract).filter(o => o.contractSymbol);
-    const puts = (putsJson?.results || []).map(mapPolygonContract).filter(o => o.contractSymbol);
+    const calls = (callsJson?.results || []).map(mapPolygonContract).filter((o) => o.contractSymbol);
+    const puts = (putsJson?.results || []).map(mapPolygonContract).filter((o) => o.contractSymbol);
 
     return res.status(200).json([...calls, ...puts]);
   } catch (err) {
-    console.error("Error fetching Polygon options chain snapshot:", err);
-    return res.status(200).json(buildMockOptions(symbol));
+    // No mock fallback — fail loudly
+    return res.status(502).json({
+      error: "Failed to fetch options from Polygon",
+      details: String(err?.message || err),
+    });
   }
 }
