@@ -2,7 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 
 const fmtPct = (x) => (x == null ? "" : `${(x * 100).toFixed(1)}%`);
 const fmtNum = (x) => (x == null ? "" : Number(x).toLocaleString());
-const fmtAum = (aum_m) => (aum_m == null ? "" : `$${fmtNum(Math.round(aum_m))} M`);
+const fmtAum = (r) => {
+  if (!r) return "";
+  if (typeof r.aum_usd === "number") {
+    return `$${fmtNum(Math.round(r.aum_usd / 1_000_000))} M`;
+  }
+  if (typeof r.aum_m === "number") {
+    return `$${fmtNum(Math.round(r.aum_m))} M`;
+  }
+  return "";
+};
 
 function downloadCSV(filename, rows) {
   const cols = ["manager", "category", "cik", "aum_m", "qoq_pct", "yoy_pct", "pct_5y", "pct_10y", "num_holdings"];
@@ -228,7 +237,7 @@ export default function HedgeFundTable() {
                 <td>{r.manager}</td>
                 <td>{r.category}</td>
                 <td>{r.cik}</td>
-                <td align="right">{fmtAum(r.aum_m)}</td>
+                <td align="right">{fmtAum(r)}</td>
                 <td align="right">{fmtPct(r.qoq_pct)}</td>
                 <td align="right">{fmtPct(r.yoy_pct)}</td>
                 <td align="right">{fmtPct(r.pct_5y)}</td>

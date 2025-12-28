@@ -54,46 +54,81 @@ function classifyManager(name = "") {
   return "other";
 }
 
-// extract total value (in $) from SEC filing page by looking for the summary table value
-function extractTotalValueFromHtml(html) {
-  const $ = cheerio.load(html);
+// --- SEC fetch helper (SEC requires a User-Agent) ---
+async function fetchSecText(url) {
+  const r = await fetch(url, {
+    headers: {
+      "User-Agent":
+        process.env.SEC_USER_AGENT ||
+        "MyApp/1.0 (contact: youremail@example.com)",
+      Accept: "application/xml,text/xml,text/plain,*/*",
+    },
+  });
+  if (!r.ok) throw new Error(`SEC fetch failed ${r.status} for ${url}`);
+  return r.text();
+}
 
-  // Strategy:
-  // 1) Prefer "Information Table" / "Summary" blocks
-  // 2) Fall back to scanning for $ value patterns near "TOTAL" or "VALUE"
-  const text = $("body").text().replace(/\s+/g, " ").trim();
+async function fetchSecJson(url) {
+  const r = await fetch(url, {
+    headers: {
+      "User-Agent":
+        process.env.SEC_USER_AGENT ||
+        "MyApp/1.0 (contact: youremail@example.com)",
+      Accept: "application/json,*/*",
+    },
+  });
+  if (!r.ok) throw new Error(`SEC fetch failed ${r.status} for ${url}`);
+  return r.json();
+}
 
-  // common patterns: "TOTAL ... 1,234,567" (value is usually in thousands for 13F info table)
-  // We'll try a few robust regexes.
-  const regexes = [
-    /TOTAL\s+VALUE\s*\(?x?\s*1000\)?\s*[:\-]?\s*\$?\s*([0-9,]+)/i,
-    /TOTAL\s+VALUE\s*[:\-]?\s*\$?\s*([0-9,]+)/i,
-    /TOTAL\s+(\$?\s*[0-9,]+)\s*(?:\(x?\s*1000\))?/i,
-  ];
+// --- Parse <tableValueTotal> from primary_doc.xml ---
+// NOTE: tableValueTotal is almost always in $ THOUSANDS for 13F.
+// We convert to dollars (USD) as BIGINT.
+function extractAumUsdFromPrimaryDocXml(xmlText) {
+  const m =
+    xmlText.match(/<tableValueTotal>\s*([\d,]+)\s*<\/tableValueTotal>/i) ||
+    xmlText.match(/<totalValue>\s*([\d,]+)\s*<\/totalValue>/i);
 
-  for (const r of regexes) {
-    const m = text.match(r);
-    if (m && m[1]) {
-      const v = Number(String(m[1]).replace(/[^0-9]/g, ""));
-      if (!Number.isNaN(v) && v > 0) {
-        // many 13F totals are expressed "x1000"
-        // if the match explicitly included x1000 text, multiply; otherwise keep as-is.
-        const near = m[0].toLowerCase();
-        const isX1000 =
-          near.includes("1000") || near.includes("x1000") || near.includes("x 1000");
-        return isX1000 ? v * 1000 : v;
-      }
-    }
+  if (!m || !m[1]) return null;
+
+  const thousands = Number(String(m[1]).replace(/,/g, ""));
+  if (!Number.isFinite(thousands) || thousands <= 0) return null;
+
+  // thousands -> dollars
+  return Math.round(thousands * 1000);
+}
+
+// --- Build primary_doc.xml URL robustly ---
+// Prefers the common XSL folder path you provided; falls back to index.json directory scan.
+async function getPrimaryDocXmlUrl(cikNoLeadingZeros, accPath) {
+  const base = `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accPath}`;
+
+  // 1) Try the common path first (your example)
+  const common = `${base}/xslForm13F_X02/primary_doc.xml`;
+  try {
+    await fetchSecText(common); // if it succeeds, use it
+    return common;
+  } catch (_) {
+    // fall through
   }
 
-  // fallback: scan for a big number near "TOTAL" and "VALUE"
-  const fallback = text.match(/TOTAL.*?VALUE.*?([0-9]{1,3}(?:,[0-9]{3})+)/i);
-  if (fallback && fallback[1]) {
-    const v = Number(fallback[1].replace(/,/g, ""));
-    if (!Number.isNaN(v) && v > 0) return v;
-  }
+  // 2) Try to locate via index.json (more general)
+  const idx = await fetchSecJson(`${base}/index.json`);
+  const items = idx?.directory?.item || [];
 
-  return null;
+  // Check if primary_doc.xml exists at top level
+  const direct = items.find((it) => String(it?.name || "").toLowerCase() === "primary_doc.xml");
+  if (direct) return `${base}/primary_doc.xml`;
+
+  // If xslForm13F_X02 folder exists, assume primary_doc.xml inside
+  const xslDir = items.find((it) => String(it?.name || "").toLowerCase() === "xslform13f_x02");
+  if (xslDir) return `${base}/xslForm13F_X02/primary_doc.xml`;
+
+  // Last resort: try any item named primary_doc.xml if present (rare)
+  const any = items.find((it) => String(it?.name || "").toLowerCase().includes("primary_doc"));
+  if (any) return `${base}/${any.name}`;
+
+  throw new Error(`Could not locate primary_doc.xml under ${base}`);
 }
 
 export default async function handler(req, res) {
@@ -176,107 +211,42 @@ export default async function handler(req, res) {
         .json({ error: "No 13F filings found on SEC for this CIK." });
     }
 
-    // Step 3: Process each filing to extract total value
+    // Step 3: Process each filing to extract total value (XML ONLY, unit-safe)
     const rows = [];
 
     for (const filing of filings) {
       try {
-        // ✅ Use reportDate (quarter being reported), not filingDate (when they filed)
-        const periodEnd = filing.reportDate; // Format: YYYY-MM-DD (quarter end)
-        if (!periodEnd) {
-          console.warn(`Missing reportDate for ${filing.accessionNumber}`);
-          continue;
-        }
+        // ✅ Use reportDate (quarter being reported), not filingDate
+        const periodEnd = filing.reportDate;
+        if (!periodEnd) continue;
 
-        // Build URL to the filing
         const accessionNum = filing.accessionNumber;
         const accPath = accessionNum.replace(/-/g, "");
 
-        // Try to fetch the filing primary document index page
-        // Example:
-        // https://www.sec.gov/Archives/edgar/data/{cikNoLeadingZeros}/{accessionNoNoDashes}/index.html
-        const cikNoLeadingZeros = String(Number(cik)); // strip leading zeros
-        const indexUrl = `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accPath}/index.html`;
+        // EDGAR path requires CIK without leading zeros
+        const cikNoLeadingZeros = String(Number(cik));
 
-        const indexHtml = await fetch(indexUrl, {
-          headers: {
-            "User-Agent":
-              process.env.SEC_USER_AGENT ||
-              "MyApp/1.0 (contact: youremail@example.com)",
-          },
-        }).then((r) => {
-          if (!r.ok) throw new Error(`SEC index fetch failed: ${r.status}`);
-          return r.text();
-        });
+        // ✅ Fetch primary_doc.xml
+        const xmlUrl = await getPrimaryDocXmlUrl(cikNoLeadingZeros, accPath);
+        const xmlText = await fetchSecText(xmlUrl);
 
-        // Parse index to find the actual filing document (prefer .txt or .html)
-        const $ = cheerio.load(indexHtml);
-        let docHref = null;
-
-        // Prefer "primaryDocument" style links
-        $("table.tableFile a").each((_, a) => {
-          const href = $(a).attr("href");
-          const t = $(a).text().toLowerCase();
-          if (!href) return;
-
-          // pick first plausible 13F primary doc
-          if (!docHref) {
-            if (
-              href.endsWith(".txt") ||
-              href.endsWith(".htm") ||
-              href.endsWith(".html")
-            ) {
-              docHref = href;
-            }
-          }
-
-          // stronger preference: something containing "13f"
-          if (t.includes("13f") && (href.endsWith(".htm") || href.endsWith(".html"))) {
-            docHref = href;
-          }
-        });
-
-        if (!docHref) {
-          console.warn(`No primary doc link found for ${accessionNum}`);
-          continue;
-        }
-
-        // docHref is usually relative like /Archives/edgar/data/.../filename.htm
-        const filingUrl = docHref.startsWith("http")
-          ? docHref
-          : `https://www.sec.gov${docHref}`;
-
-        const filingHtml = await fetch(filingUrl, {
-          headers: {
-            "User-Agent":
-              process.env.SEC_USER_AGENT ||
-              "MyApp/1.0 (contact: youremail@example.com)",
-          },
-        }).then((r) => {
-          if (!r.ok) throw new Error(`SEC filing fetch failed: ${r.status}`);
-          return r.text();
-        });
-
-        let totalValue = extractTotalValueFromHtml(filingHtml);
-        if (!totalValue) continue;
-
-        // ✅ Normalize to $ MILLIONS only when clearly in THOUSANDS
-        // Example: BeachPoint shows ~220,989 (thousands) => 220.989 (millions)
-        let totalValueM = totalValue;
-
-        // Heuristic: if it's >= 50,000 it's almost certainly "in thousands" not "in millions"
-        if (totalValueM >= 50000) totalValueM = totalValueM / 1000;
+        const aumUsd = extractAumUsdFromPrimaryDocXml(xmlText);
+        if (!aumUsd) continue;
 
         rows.push({
           cik,
           manager_name: canonicalName,
           type: category,
           period_end: periodEnd,
-          aum: totalValueM,
+          aum_usd: aumUsd,              // canonical truth
+          aum: aumUsd / 1_000_000,      // $M for backward compatibility
+          source_url: xmlUrl,           // optional but very useful
         });
       } catch (e) {
-        console.warn(`Error processing filing:`, e.message);
-        // continue to next filing
+        console.warn(
+          `Error processing filing ${filing?.accessionNumber}:`,
+          e.message
+        );
       }
     }
 
@@ -289,13 +259,14 @@ export default async function handler(req, res) {
 
     // Step 4: Upsert into DB (use (cik, period_end) as the key)
     const upsertSql = `
-      INSERT INTO manager_quarter (cik, manager_name, type, period_end, aum)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO manager_quarter (cik, manager_name, type, period_end, aum, aum_usd)
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (cik, period_end)
       DO UPDATE SET
         manager_name = EXCLUDED.manager_name,
         type = EXCLUDED.type,
-        aum = EXCLUDED.aum
+        aum = EXCLUDED.aum,
+        aum_usd = EXCLUDED.aum_usd
     `;
 
     for (const r of rows) {
@@ -305,6 +276,7 @@ export default async function handler(req, res) {
         r.type,
         r.period_end,
         r.aum,
+        r.aum_usd,
       ]);
     }
 
