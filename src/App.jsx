@@ -13,6 +13,7 @@ import {
 import Chart from "react-apexcharts";  // ⬅️ NEW
 import HedgeFundTable from "./HedgeFundTable.jsx";
 import OptionsChain from "./OptionsChain.jsx";
+import LiveChart from "./LiveChart.jsx";
 
 // ✅ Always call the same deployment (same-origin)
 const API_BASE = "";
@@ -267,6 +268,112 @@ export default function App() {
   const [showStd5, setShowStd5] = useState(false);   // σ5
   const [showStd60, setShowStd60] = useState(false); // σ60
 
+  // ===== LIVE CHART (E*TRADE-style) =====
+const [liveSymbol, setLiveSymbol] = useState(DEFAULT_ACTIVE[0]);
+const [livePeriod, setLivePeriod] = useState("1D");     // 1D, 5D, 1M, 3M, 6M, 1Y
+const [liveGran, setLiveGran] = useState("5m");         // 1m, 5m, 15m, 1h, 1D
+const [liveAuto, setLiveAuto] = useState(true);
+const [liveCandles, setLiveCandles] = useState([]);
+const [liveError, setLiveError] = useState("");
+
+function periodToDays(p) {
+  if (p === "1D") return 1;
+  if (p === "5D") return 5;
+  if (p === "1M") return 30;
+  if (p === "3M") return 90;
+  if (p === "6M") return 180;
+  if (p === "1Y") return 365;
+  return 30;
+}
+
+function periodAndGranToDays(period, gran) {
+  // Uses your backend behavior:
+  // days<=7 -> 1m, days<=60 -> 5m, else -> 1d
+  if (period === "1D") return 1;
+  if (period === "5D") return 5;
+
+  // For 1M: allow 1m only up to 7 days (Yahoo limit)
+  if (period === "1M") return gran === "1m" ? 7 : 30;
+
+  if (period === "3M") return 60;   // 5m
+  if (period === "6M") return 180;  // 1d
+  if (period === "1Y") return 365;  // 1d
+
+  return 30;
+}
+
+// aggregate your API rows into N-minute candles (client-side)
+function aggregateToMinutes(rows, minutes) {
+  if (!minutes) {
+    // return as-is (assumes rows already come as daily or desired granularity)
+    return rows;
+  }
+
+  const out = [];
+  let bucket = null;
+
+  const msPerBucket = minutes * 60 * 1000;
+
+  for (const r of rows) {
+    const t = new Date(r.ts_utc).getTime();
+    if (Number.isNaN(t)) continue;
+
+    const bucketStart = Math.floor(t / msPerBucket) * msPerBucket;
+
+    if (!bucket || bucket.bucketStart !== bucketStart) {
+      if (bucket) out.push(bucket);
+      bucket = {
+        bucketStart,
+        ts_utc: new Date(bucketStart).toISOString(),
+        open: r.open,
+        high: r.high,
+        low: r.low,
+        close: r.close,
+        volume: r.volume ?? 0,
+      };
+    } else {
+      bucket.high = Math.max(bucket.high, r.high);
+      bucket.low = Math.min(bucket.low, r.low);
+      bucket.close = r.close;
+      bucket.volume = (bucket.volume ?? 0) + (r.volume ?? 0);
+    }
+  }
+
+  if (bucket) out.push(bucket);
+  return out;
+}
+
+async function loadLive() {
+  setLiveError("");
+
+  try {
+    const daysParam = periodAndGranToDays(livePeriod, liveGran);
+
+    const url = `${API_BASE}/api/prices?symbol=${encodeURIComponent(
+      liveSymbol
+    )}&days=${daysParam}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+
+    // IMPORTANT: use backend candles directly (no aggregateToMinutes)
+    const candles = (json || []).map((c) => ({
+      time: Math.floor(new Date(c.ts_utc).getTime() / 1000), // UNIX seconds
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume ?? 0,
+    }));
+
+    setLiveCandles(candles);
+  } catch (e) {
+    setLiveError(`Live chart failed: ${e.message}`);
+  }
+}
+
   // --- set primary (for Latest + MAs). does NOT reload prices ---
   function handleSelectSymbol(sym) {
     setSymbol(sym);
@@ -442,6 +549,20 @@ export default function App() {
     const missing = activeSymbols.filter((s) => !(s in optionsBySymbol));
     if (missing.length > 0) loadOptionsForSymbols(missing);
   }, [activeSymbols]);
+
+  // Live polling (E*TRADE-like). Poll every 5 seconds when enabled.
+useEffect(() => {
+  loadLive();
+
+  if (!liveAuto) return;
+
+  const id = setInterval(() => {
+    loadLive();
+  }, 5000);
+
+  return () => clearInterval(id);
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [liveSymbol, livePeriod, liveGran, liveAuto]);
 
   // Reset candlestick drill when user changes symbol or days
   useEffect(() => {
@@ -1136,6 +1257,80 @@ export default function App() {
                 </p>
               </div>
             )}
+
+            {/* ==== LIVE CHART (E*TRADE style) ==== */}
+            <div className="chart-wrapper">
+              <div className="live-topbar">
+                <div className="live-left">
+                  <h2 style={{ margin: 0 }}>{liveSymbol} · Live</h2>
+                  <div className="live-sub">
+                    Period:
+                    {["1D","5D","1M","3M","6M","1Y"].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={livePeriod === p ? "pill active" : "pill"}
+                        onClick={() => setLivePeriod(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="live-sub">
+                    Granularity:
+                    {["1m","5m","15m","1h","1D"].map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        className={liveGran === g ? "pill active" : "pill"}
+                        onClick={() => setLiveGran(g)}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="live-right">
+                  <button type="button" onClick={loadLive} style={{ padding: "6px 10px" }}>
+                    Refresh
+                  </button>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12 }}>Auto</span>
+                    <input
+                      type="checkbox"
+                      checked={liveAuto}
+                      onChange={(e) => setLiveAuto(e.target.checked)}
+                    />
+                  </label>
+
+                  <select
+                    value={liveSymbol}
+                    onChange={(e) => setLiveSymbol(e.target.value)}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #475569",
+                      background: "#020617",
+                      color: "#e5e7eb",
+                    }}
+                  >
+                    {ALL_SYMBOLS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {liveError ? (
+                <div className="status"><span className="error">{liveError}</span></div>
+              ) : (
+                <div className="chart-inner">
+                  {liveCandles.length ? <LiveChart candles={liveCandles} /> : <p>No live data.</p>}
+                </div>
+              )}
+            </div>
 
             {/* ==== NEW: CANDLESTICK CHART FOR PRIMARY SYMBOL ==== */}
             <div className="chart-wrapper">

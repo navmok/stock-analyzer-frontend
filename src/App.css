@@ -217,6 +217,51 @@ input:checked + .slider:before {
   height: 360px;
 }
 
+/* Live chart top bar (E*TRADE-ish) */
+.live-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.live-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.live-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.live-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #475569;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pill.active {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
 /* Tables */
 table {
   width: 100%;
