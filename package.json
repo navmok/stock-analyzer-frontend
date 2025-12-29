@@ -12,6 +12,7 @@
   "dependencies": {
     "apexcharts": "^5.3.6",
     "cheerio": "^1.1.2",
+    "lightweight-charts": "^5.1.0",
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-apexcharts": "^1.9.0",
