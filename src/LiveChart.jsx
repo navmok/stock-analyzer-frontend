@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { createChart, CrosshairMode } from "lightweight-charts";
+import { createChart, CrosshairMode, CandlestickSeries } from "lightweight-charts";
 
 // expects candles: [{ time: unixSeconds, open, high, low, close, volume }]
 export default function LiveChart({ candles, height = 360 }) {
@@ -42,14 +42,14 @@ export default function LiveChart({ candles, height = 360 }) {
       handleScale: { mouseWheel: true, pinch: true },
     });
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
-    });
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: "#22c55e",
+        downColor: "#ef4444",
+        borderUpColor: "#22c55e",
+        borderDownColor: "#ef4444",
+        wickUpColor: "#22c55e",
+        wickDownColor: "#ef4444",
+        });
 
     const volSeries = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
