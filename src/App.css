@@ -11,7 +11,7 @@ body {
 .app {
   min-height: 100vh;
   padding: 16px 24px 40px;
-  background: radial-gradient(circle at top, #1e293b 0, #020617 55%);
+  background: #020617;     /* flat terminal background */
   box-sizing: border-box;
 }
 
@@ -197,12 +197,12 @@ input:checked + .slider:before {
 .chart-wrapper,
 .table-wrapper {
   margin-bottom: 24px;
-  background-color: rgba(15, 23, 42, 0.9);
+  background-color: #020617;   /* deep E*TRADE navy */
   border-radius: 8px;
   padding: 12px 12px 16px;
-  border: 1px solid #1f2937;
-  width: 100%;          /* NEW: stretch to full width */
-  max-width: 100%;      /* NEW: avoid any shrinking */
+  border: 1px solid #334155;   /* sharper panel edge */
+  width: 100%;
+  max-width: 100%;
 }
 
 .chart-wrapper h2,

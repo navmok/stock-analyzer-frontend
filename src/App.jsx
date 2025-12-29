@@ -635,16 +635,36 @@ export default function App() {
     () => ({
       chart: {
         type: "candlestick",
+        background: "transparent",
+        animations: {
+          enabled: true,
+          easing: "linear",
+          speed: 250, // smooth but fast
+          animateGradually: {
+            enabled: true,
+            delay: 80,
+          },
+          dynamicAnimation: {
+            enabled: true,
+            speed: 180,
+          },
+        },
         toolbar: {
           show: true,
+          tools: {
+            zoom: true,
+            zoomin: true,
+            zoomout: true,
+            pan: true,
+            reset: true,
+          },
         },
-        background: "transparent",
+        foreColor: "#e5e7eb",
         events: {
           dataPointSelection: (event, chartContext, config) => {
             const sIdx = config.seriesIndex;
             const pIdx = config.dataPointIndex;
-            const point =
-              config?.w?.config?.series?.[sIdx]?.data?.[pIdx];
+            const point = config?.w?.config?.series?.[sIdx]?.data?.[pIdx];
 
             if (!point || !point.drillKey) return;
 
@@ -683,7 +703,13 @@ export default function App() {
       // ⚠️ IMPORTANT: use category axis → removes gaps where there is no data
       xaxis: {
         type: "category",
-        tickAmount: 8, // you can tweak this
+        tickAmount: 8,
+        axisBorder: {
+          color: "#334155",
+        },
+        axisTicks: {
+          color: "#334155",
+        },
         labels: {
           rotate: -90,
           trim: true,
@@ -694,6 +720,12 @@ export default function App() {
         },
       },
       yaxis: {
+        axisBorder: {
+          color: "#334155",
+        },
+        axisTicks: {
+          color: "#334155",
+        },
         tooltip: {
           enabled: true,
         },
@@ -706,34 +738,21 @@ export default function App() {
       },
       plotOptions: {
         candlestick: {
+          barWidth: "65%",
           colors: {
             upward: "#22c55e",
             downward: "#ef4444",
           },
+          wick: {
+            useFillColor: true,
+          },
         },
       },
       tooltip: {
-        shared: true,
+        shared: false,
+        intersect: true,
+        followCursor: true,
         theme: "dark",
-        custom: function ({ seriesIndex, dataPointIndex, w }) {
-          // Get the point we plotted: { x, y: [open, high, low, close] }
-          const point =
-            w?.config?.series?.[seriesIndex]?.data?.[dataPointIndex];
-
-          if (!point || !Array.isArray(point.y)) return "";
-
-          const [open, high, low, close] = point.y;
-          const fmt = (v) => `$${Number(v).toFixed(2)}`;
-
-          return (
-            '<div class="apex-tooltip" style="background:#111827;color:#e5e7eb;padding:8px 10px;border-radius:4px;font-size:12px;">' +
-            `Open: <b>${fmt(open)}</b><br/>` +
-            `High: <b>${fmt(high)}</b><br/>` +
-            `Low: <b>${fmt(low)}</b><br/>` +
-            `Close: <b>${fmt(close)}</b>` +
-            "</div>"
-          );
-        },
       },
     }),
     [symbol, candleDrillLevel]
@@ -1187,6 +1206,8 @@ export default function App() {
                     type="candlestick"
                     height={350}
                     width="100%"
+                    redrawOnParentResize={false}
+                    redrawOnWindowResize={false}
                   />
                 ) : (
                   <p>No candlestick data for the selected symbol.</p>
