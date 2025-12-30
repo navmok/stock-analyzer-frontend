@@ -9,32 +9,46 @@ export default async function handler(req, res) {
   // minimum 1 day, otherwise whatever the user passes
   const d = Math.max(1, parseInt(daysParam, 10) || 1);
 
+  const intervalParam = req.query?.interval; // ✅ NEW: "1m","5m","15m","60m","1d"
+
+  const allowed = new Set(["1m", "5m", "15m", "60m", "1d"]);
+
   let interval;
   let range;
 
-  if (d <= 7) {
-    // 1-minute data, Yahoo supports up to 7 days
-    interval = "1m";
-    range = "7d";
-  } else if (d <= 60) {
-    // 5-minute data, Yahoo supports up to 60 days
-    interval = "5m";
-    range = "60d";
-  } else {
-    // Daily data; choose a range that keeps 1d resolution
-    interval = "1d";
+  // ✅ If user requests interval, use it (with safe ranges)
+  if (intervalParam && allowed.has(intervalParam)) {
+    interval = intervalParam;
 
-    if (d <= 365) {
-      range = "1y";
-    } else if (d <= 730) {
-      range = "2y";
-    } else if (d <= 5 * 365) {
-      range = "5y";
-    } else if (d <= 10 * 365) {
-      range = "10y";
+    if (interval === "1m") {
+      range = "7d"; // Yahoo limit for 1m
+    } else if (interval === "5m" || interval === "15m") {
+      range = "60d"; // safe intraday range
+    } else if (interval === "60m") {
+      range = d <= 365 ? "1y" : d <= 730 ? "2y" : "5y";
     } else {
-      // really long spans – may get coarser, but we'll still trim
-      range = "max";
+      // 1d
+      range =
+        d <= 365 ? "1y" :
+        d <= 730 ? "2y" :
+        d <= 5 * 365 ? "5y" :
+        d <= 10 * 365 ? "10y" : "max";
+    }
+  } else {
+    // ✅ fallback to old behavior
+    if (d <= 7) {
+      interval = "1m";
+      range = "7d";
+    } else if (d <= 60) {
+      interval = "5m";
+      range = "60d";
+    } else {
+      interval = "1d";
+      range =
+        d <= 365 ? "1y" :
+        d <= 730 ? "2y" :
+        d <= 5 * 365 ? "5y" :
+        d <= 10 * 365 ? "10y" : "max";
     }
   }
 

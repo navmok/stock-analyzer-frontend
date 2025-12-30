@@ -30,22 +30,27 @@ export default function LiveChart({ candles, height = 360 }) {
     if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
-      height,
-      layout: {
-        background: { color: "transparent" },
-        textColor: "#e5e7eb",
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
-      },
-      grid: {
-        vertLines: { color: "#1f2937" },
-        horzLines: { color: "#1f2937" },
-      },
-      rightPriceScale: { borderColor: "#334155" },
-      timeScale: { borderColor: "#334155", timeVisible: true, secondsVisible: false },
-      crosshair: { mode: CrosshairMode.Normal },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true },
-      handleScale: { mouseWheel: true, pinch: true },
-    });
+        height,
+        layout: {
+            background: { color: "transparent" },
+            textColor: "#e5e7eb",
+        },
+        grid: {
+            vertLines: { color: "#1f2937" },
+            horzLines: { color: "#1f2937" },
+        },
+        crosshair: { mode: CrosshairMode.Normal },
+
+        // ✅ ADD/REPLACE THIS BLOCK
+        rightPriceScale: {
+            borderColor: "#334155",
+            scaleMargins: { top: 0.08, bottom: 0.28 },
+        },
+
+        timeScale: { borderColor: "#334155", timeVisible: true, secondsVisible: false },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true },
+        handleScale: { mouseWheel: true, pinch: true },
+        });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
         upColor: "#22c55e",
@@ -58,8 +63,11 @@ export default function LiveChart({ candles, height = 360 }) {
 
     const volSeries = chart.addSeries(HistogramSeries, {
         priceFormat: { type: "volume" },
-        priceScaleId: "",
-        scaleMargins: { top: 0.8, bottom: 0 },
+        priceScaleId: "", // separate internal scale
+        });
+        chart.priceScale("").applyOptions({
+        scaleMargins: { top: 0.75, bottom: 0 }, // ✅ keep volume in bottom zone
+        visible: false,                         // ✅ hide volume scale labels
         });
 
     chartRef.current = chart;

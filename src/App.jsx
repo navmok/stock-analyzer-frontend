@@ -349,9 +349,14 @@ async function loadLive() {
   try {
     const daysParam = periodAndGranToDays(livePeriod, liveGran);
 
-    const url = `${API_BASE}/api/prices?symbol=${encodeURIComponent(
-      liveSymbol
-    )}&days=${daysParam}`;
+    const interval =
+      liveGran === "1h" ? "60m" :
+      liveGran === "1D" ? "1d" :
+      liveGran; // "1m","5m","15m"
+
+    const url =
+      `${API_BASE}/api/prices?symbol=${encodeURIComponent(liveSymbol)}` +
+      `&days=${daysParam}&interval=${encodeURIComponent(interval)}`;
 
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
