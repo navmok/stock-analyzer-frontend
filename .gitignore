@@ -35,3 +35,6 @@ scripts/*.txt
 scripts/*.log
 sec_index/
 
+
+.vercel
+.env*.local

@@ -63,6 +63,7 @@ function periodToQuarterEnd(periodStr) {
 }
 
 export default async function handler(req, res) {
+  console.log("API: /api/hedgefunds called with query:", req.query);
   try {
     const period = String(req.query.period || "2025Q3").trim();
     const qEnd = periodToQuarterEnd(period);
