@@ -2,13 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 
 const fmtPct = (x) => (x == null ? "" : `${(x * 100).toFixed(1)}%`);
 const fmtNum = (x) => (x == null ? "" : Number(x).toLocaleString());
+const fmtBillions = (x) => {
+  if (x == null) return "";
+  const n = Number(x);
+  if (Number.isNaN(n)) return "";
+  const abs = Math.abs(n);
+  const fractionDigits = abs >= 10 ? 0 : abs >= 1 ? 1 : 2;
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+};
 const fmtAum = (r) => {
   if (!r) return "";
   if (typeof r.aum_usd === "number") {
-    return `$${fmtNum(Math.round(r.aum_usd / 1_000_000_000))} B`;
+    return `$${fmtBillions(r.aum_usd / 1_000_000_000)} B`;
   }
   if (typeof r.aum_m === "number") {
-    return `$${fmtNum(Math.round(r.aum_m / 1_000))} B`;
+    return `$${fmtBillions(r.aum_m / 1_000)} B`;
   }
   return "";
 };
