@@ -95,35 +95,17 @@ export default async function handler(req, res) {
     //   2) ONLY using true quarter-end dates (filters out old bad rows)
     //   3) strict prior-quarter matches via interval subtraction
     const sql = `
-      WITH holdings AS (
+      WITH base AS (
         SELECT
-          cik,
-          period_end::date AS period_end,
-          SUM(value_usd) AS total_value_usd,
-          COUNT(*) AS holdings_count
-        FROM manager_quarter_holding
-        GROUP BY 1, 2
-      ),
-      mq AS (
-        SELECT
-          cik,
-          manager_name,
-          period_end::date AS period_end,
-          total_value_m,
-          num_holdings
-        FROM manager_quarter
-      ),
-      base AS (
-        SELECT
-          mq.cik,
-          mq.manager_name,
-          mq.period_end,
-          COALESCE(h.total_value_usd, mq.total_value_m * 1000000) AS total_value_usd,
-          COALESCE(h.holdings_count, mq.num_holdings, 0) AS num_holdings
-        FROM mq
-        LEFT JOIN holdings h
-          ON h.cik = mq.cik
-          AND h.period_end = mq.period_end
+          h.cik,
+          c.manager_name,
+          h.period_end::date AS period_end,
+          SUM(h.value_usd) AS total_value_usd,
+          COUNT(*) AS num_holdings
+        FROM manager_quarter_holding h
+        LEFT JOIN manager_classification c
+          ON h.cik = c.cik
+        GROUP BY 1, 2, 3
       ),
       cur AS (
         SELECT *
