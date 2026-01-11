@@ -96,42 +96,45 @@ export default async function handler(req, res) {
     //   2) ONLY using true quarter-end dates (filters out old bad rows)
     //   3) strict prior-quarter matches via interval subtraction
     const sql = `
-      WITH base AS (
+      WITH dates AS (
         SELECT
-          h.cik,
-          c.manager_name,
-          h.period_end::date AS period_end,
-          SUM(h.value_usd) AS total_value_usd,
-          COUNT(*) AS num_holdings
-        FROM manager_quarter_holding h
-        LEFT JOIN manager_classification c
-          ON h.cik = c.cik
-        GROUP BY 1, 2, 3
+          $1::date AS cur_end,
+          (date_trunc('quarter', $1::date)::date - 1) AS prev_qtr_end,
+          (date_trunc('quarter', $1::date)::date - 1 - INTERVAL '1 year')::date AS prev_yoy_end,
+          (date_trunc('quarter', $1::date)::date - 1 - INTERVAL '5 years')::date AS prev_5y_end,
+          (date_trunc('quarter', $1::date)::date - 1 - INTERVAL '10 years')::date AS prev_10y_end
       ),
       cur AS (
-        SELECT *
-        FROM base
-        WHERE period_end = $1::date
+        SELECT
+          a.cik,
+          c.manager_name,
+          a.period_end,
+          a.total_value_usd,
+          a.num_holdings
+        FROM public.manager_quarter_aum a
+        LEFT JOIN public.manager_classification c
+          ON a.cik = c.cik
+        JOIN dates d ON a.period_end = d.cur_end
       ),
       prev AS (
         SELECT cik, total_value_usd AS prev_qtr
-        FROM base
-        WHERE period_end = ($1::date - INTERVAL '3 months')
+        FROM public.manager_quarter_aum
+        WHERE period_end = (SELECT prev_qtr_end FROM dates)
       ),
       yoy AS (
         SELECT cik, total_value_usd AS prev_yoy
-        FROM base
-        WHERE period_end = ($1::date - INTERVAL '12 months')
+        FROM public.manager_quarter_aum
+        WHERE period_end = (SELECT prev_yoy_end FROM dates)
       ),
       y5 AS (
         SELECT cik, total_value_usd AS prev_5y
-        FROM base
-        WHERE period_end = ($1::date - INTERVAL '5 years')
+        FROM public.manager_quarter_aum
+        WHERE period_end = (SELECT prev_5y_end FROM dates)
       ),
       y10 AS (
         SELECT cik, total_value_usd AS prev_10y
-        FROM base
-        WHERE period_end = ($1::date - INTERVAL '10 years')
+        FROM public.manager_quarter_aum
+        WHERE period_end = (SELECT prev_10y_end FROM dates)
       )
       SELECT
         cur.cik,
@@ -148,7 +151,8 @@ export default async function handler(req, res) {
       LEFT JOIN yoy USING (cik)
       LEFT JOIN y5 USING (cik)
       LEFT JOIN y10 USING (cik)
-      ORDER BY cur.total_value_usd DESC;
+      ORDER BY cur.total_value_usd DESC
+      LIMIT 2000;
     `;
 
     const { rows } = await getPool().query(sql, [qEnd]);
