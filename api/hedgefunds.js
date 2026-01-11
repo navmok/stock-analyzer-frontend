@@ -120,6 +120,16 @@ export default async function handler(req, res) {
         SELECT cik, total_value_m AS prev_yoy
         FROM base
         WHERE period_end = ($1::date - INTERVAL '12 months')
+      ),
+      y5 AS (
+        SELECT cik, total_value_m AS prev_5y
+        FROM base
+        WHERE period_end = ($1::date - INTERVAL '5 years')
+      ),
+      y10 AS (
+        SELECT cik, total_value_m AS prev_10y
+        FROM base
+        WHERE period_end = ($1::date - INTERVAL '10 years')
       )
       SELECT
         cur.cik,
@@ -128,10 +138,14 @@ export default async function handler(req, res) {
         cur.total_value_m,
         cur.num_holdings,
         prev.prev_qtr,
-        yoy.prev_yoy
+        yoy.prev_yoy,
+        y5.prev_5y,
+        y10.prev_10y
       FROM cur
       LEFT JOIN prev USING (cik)
       LEFT JOIN yoy USING (cik)
+      LEFT JOIN y5 USING (cik)
+      LEFT JOIN y10 USING (cik)
       ORDER BY cur.total_value_m DESC
       LIMIT 2000;
     `;
