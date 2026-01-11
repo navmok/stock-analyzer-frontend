@@ -50,6 +50,10 @@ function pct(curr, prev) {
   return (curr - prev) / prev;
 }
 
+function cagr(curr, prev, years) {
+  if (prev == null || prev === 0 || years == null || years <= 0) return null;
+  return Math.pow(curr / prev, 1 / years) - 1;
+}
 function periodToQuarterEnd(periodStr) {
   const m = String(periodStr || "").match(/^(\d{4})Q([1-4])$/i);
   if (!m) return null;
@@ -175,8 +179,8 @@ export default async function handler(req, res) {
 
         qoq_pct: curr_usd != null ? pct(curr_usd, prevQ) : null,
         yoy_pct: curr_usd != null ? pct(curr_usd, prevY) : null,
-        pct_5y: curr_usd != null ? pct(curr_usd, prev5) : null,
-        pct_10y: curr_usd != null ? pct(curr_usd, prev10) : null,
+        pct_5y: curr_usd != null ? cagr(curr_usd, prev5, 5) : null,
+        pct_10y: curr_usd != null ? cagr(curr_usd, prev10, 10) : null,
       };
     });
 
