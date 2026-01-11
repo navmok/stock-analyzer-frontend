@@ -100,32 +100,35 @@ export default async function handler(req, res) {
           cik,
           period_end::date AS period_end,
           SUM(value_usd) AS total_value_usd,
-          COUNT(*) AS num_holdings
+          COUNT(*) AS holdings_count
         FROM manager_quarter_holding
         GROUP BY 1, 2
       ),
-      cur AS (
-        -- dY"? only rows for THIS quarter
-        SELECT
-          h.cik,
-          mq.manager_name,
-          h.period_end,
-          h.total_value_usd,
-          h.num_holdings
-        FROM holdings h
-        LEFT JOIN manager_quarter mq
-          ON mq.cik = h.cik
-          AND mq.period_end::date = h.period_end
-        WHERE h.period_end = $1::date
-      ),
-      base AS (
-        -- dY"? only historical rows for managers in THIS quarter
+      mq AS (
         SELECT
           cik,
-          period_end,
-          total_value_usd
-        FROM holdings
-        WHERE cik IN (SELECT DISTINCT cik FROM cur)
+          manager_name,
+          period_end::date AS period_end,
+          total_value_m,
+          num_holdings
+        FROM manager_quarter
+      ),
+      base AS (
+        SELECT
+          mq.cik,
+          mq.manager_name,
+          mq.period_end,
+          COALESCE(h.total_value_usd, mq.total_value_m * 1000000) AS total_value_usd,
+          COALESCE(h.holdings_count, mq.num_holdings, 0) AS num_holdings
+        FROM mq
+        LEFT JOIN holdings h
+          ON h.cik = mq.cik
+          AND h.period_end = mq.period_end
+      ),
+      cur AS (
+        SELECT *
+        FROM base
+        WHERE period_end = $1::date
       ),
       prev AS (
         SELECT cik, total_value_usd AS prev_qtr
