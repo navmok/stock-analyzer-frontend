@@ -5,10 +5,10 @@ const fmtNum = (x) => (x == null ? "" : Number(x).toLocaleString());
 const fmtAum = (r) => {
   if (!r) return "";
   if (typeof r.aum_usd === "number") {
-    return `$${fmtNum(Math.round(r.aum_usd / 1_000_000))} M`;
+    return `$${fmtNum(Math.round(r.aum_usd / 1_000_000_000))} B`;
   }
   if (typeof r.aum_m === "number") {
-    return `$${fmtNum(Math.round(r.aum_m))} M`;
+    return `$${fmtNum(Math.round(r.aum_m / 1_000))} B`;
   }
   return "";
 };
@@ -223,7 +223,7 @@ export default function HedgeFundTable() {
               <SortHeader label="Manager" k="manager" />
               <SortHeader label="Type" k="category" />
               <SortHeader label="CIK" k="cik" />
-              <SortHeader label="AUM ($M)" k="aum_m" align="right" />
+              <SortHeader label="AUM ($B)" k="aum_m" align="right" />
               <SortHeader label="QoQ %" k="qoq_pct" align="right" />
               <SortHeader label="YoY %" k="yoy_pct" align="right" />
               <SortHeader label="5Y %" k="pct_5y" align="right" />
