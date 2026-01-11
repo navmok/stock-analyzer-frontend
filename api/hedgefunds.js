@@ -82,8 +82,9 @@ export default async function handler(req, res) {
 
     // NOW search exists ✅
     const cacheKey = `${period}|${search}|${[...types].join(",")}`;
+    const bypassCache = String(req.query.nocache || "") === "1";
     const cached = CACHE[cacheKey];
-    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    if (!bypassCache && cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       return res.status(200).json(cached.data);
     }
     if (!qEnd) return res.status(400).json({ error: "Bad period. Use like 2025Q3." });
@@ -147,8 +148,7 @@ export default async function handler(req, res) {
       LEFT JOIN yoy USING (cik)
       LEFT JOIN y5 USING (cik)
       LEFT JOIN y10 USING (cik)
-      ORDER BY cur.total_value_usd DESC
-      LIMIT 2000;
+      ORDER BY cur.total_value_usd DESC;
     `;
 
     const { rows } = await getPool().query(sql, [qEnd]);
