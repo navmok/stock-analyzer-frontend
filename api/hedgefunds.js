@@ -95,43 +95,53 @@ export default async function handler(req, res) {
     //   2) ONLY using true quarter-end dates (filters out old bad rows)
     //   3) strict prior-quarter matches via interval subtraction
     const sql = `
-      WITH cur AS (
-        -- 🔥 only rows for THIS quarter
+      WITH holdings AS (
         SELECT
           cik,
           manager_name,
           period_end::date AS period_end,
-          total_value_m,
+          SUM(value_usd) AS total_value_usd,
+          COUNT(*) AS num_holdings
+        FROM manager_quarter_holding
+        GROUP BY 1, 2, 3
+      ),
+      cur AS (
+        -- dY"? only rows for THIS quarter
+        SELECT
+          cik,
+          manager_name,
+          period_end,
+          total_value_usd,
           num_holdings
-        FROM manager_quarter
+        FROM holdings
         WHERE period_end = $1::date
       ),
       base AS (
-        -- 🔥 only historical rows for managers in THIS quarter
+        -- dY"? only historical rows for managers in THIS quarter
         SELECT
           cik,
-          period_end::date AS period_end,
-          total_value_m
-        FROM manager_quarter
+          period_end,
+          total_value_usd
+        FROM holdings
         WHERE cik IN (SELECT DISTINCT cik FROM cur)
       ),
       prev AS (
-        SELECT cik, total_value_m AS prev_qtr
+        SELECT cik, total_value_usd AS prev_qtr
         FROM base
         WHERE period_end = ($1::date - INTERVAL '3 months')
       ),
       yoy AS (
-        SELECT cik, total_value_m AS prev_yoy
+        SELECT cik, total_value_usd AS prev_yoy
         FROM base
         WHERE period_end = ($1::date - INTERVAL '12 months')
       ),
       y5 AS (
-        SELECT cik, total_value_m AS prev_5y
+        SELECT cik, total_value_usd AS prev_5y
         FROM base
         WHERE period_end = ($1::date - INTERVAL '5 years')
       ),
       y10 AS (
-        SELECT cik, total_value_m AS prev_10y
+        SELECT cik, total_value_usd AS prev_10y
         FROM base
         WHERE period_end = ($1::date - INTERVAL '10 years')
       )
@@ -139,7 +149,7 @@ export default async function handler(req, res) {
         cur.cik,
         cur.manager_name,
         cur.period_end,
-        cur.total_value_m,
+        cur.total_value_usd,
         cur.num_holdings,
         prev.prev_qtr,
         yoy.prev_yoy,
@@ -150,14 +160,14 @@ export default async function handler(req, res) {
       LEFT JOIN yoy USING (cik)
       LEFT JOIN y5 USING (cik)
       LEFT JOIN y10 USING (cik)
-      ORDER BY cur.total_value_m DESC
+      ORDER BY cur.total_value_usd DESC
       LIMIT 2000;
     `;
 
     const { rows } = await getPool().query(sql, [qEnd]);
 
     let out = rows.map((r) => {
-      const curr_usd = r.total_value_m != null ? Number(r.total_value_m) : null;
+      const curr_usd = r.total_value_usd != null ? Number(r.total_value_usd) : null;
       const prevQ = r.prev_qtr != null ? Number(r.prev_qtr) : null;
       const prevY = r.prev_yoy != null ? Number(r.prev_yoy) : null;
       const prev5 = r.prev_5y != null ? Number(r.prev_5y) : null;
