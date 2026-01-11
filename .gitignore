@@ -27,3 +27,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Data and Index files
+scripts/*.csv
+scripts/*.html
+scripts/*.txt
+scripts/*.log
+sec_index/
+
