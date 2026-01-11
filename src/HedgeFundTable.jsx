@@ -16,7 +16,7 @@ const fmtBillions = (x) => {
 const fmtAum = (r) => {
   if (!r) return "";
   if (typeof r.aum_usd === "number") {
-    return `$${fmtBillions(r.aum_usd / 1_000)} B`;
+    return `$${fmtBillions(r.aum_usd / 1_000_000_000)} B`;
   }
   if (typeof r.aum_m === "number") {
     return `$${fmtBillions(r.aum_m / 1_000)} B`;
