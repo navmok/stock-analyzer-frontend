@@ -17,6 +17,8 @@ const fmtPct = (x, digits = 1) => {
   // return `${n.toFixed(digits)}%`;
 };
 
+const fmtDate = (d) => (d ? String(d).slice(0, 10) : "");
+
 export default function OptionsScanTable() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export default function OptionsScanTable() {
       setLoading(true);
       setErr("");
       try {
-        const r = await fetch("/api/options-scan?limit=100");
+        const r = await fetch("/api/options-scan-live?limit=100");
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
         if (!cancelled) setRows(Array.isArray(j) ? j : []);
@@ -110,19 +112,19 @@ export default function OptionsScanTable() {
         <table width="100%" cellPadding="6" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-              <SortHeader label="Ticker" k="ticker" />
-              <SortHeader label="Trade Date" k="trade_dt" />
-              <SortHeader label="Spot" k="spot" align="right" />
-              <SortHeader label="Exp" k="exp" />
-              <SortHeader label="DTE" k="dte" align="right" />
-              <SortHeader label="Strike" k="strike" align="right" />
-              <SortHeader label="Premium" k="premium" align="right" />
-              <SortHeader label="IV" k="iv" align="right" />
-              <SortHeader label="Delta" k="delta" align="right" />
-              <SortHeader label="POP" k="pop" align="right" />
-              <SortHeader label="Moneyness" k="moneyness" align="right" />
-              <SortHeader label="ROI" k="roi" align="right" />
-              <SortHeader label="ROI Ann." k="roi_annualized" align="right" />
+                <SortHeader label="Ticker" k="ticker" />
+                <SortHeader label="Trade Date" k="trade_dt" />
+                <SortHeader label="Spot" k="spot" align="right" />
+                <SortHeader label="Exp" k="exp" />
+                <SortHeader label="DTE" k="dte" align="right" />
+                <SortHeader label="Strike" k="strike" align="right" />
+                <SortHeader label="Premium" k="premium" align="right" />
+                <SortHeader label="IV" k="iv" align="right" />
+                <SortHeader label="Delta" k="delta" align="right" />
+                <SortHeader label="POP" k="pop" align="right" />
+                <SortHeader label="Moneyness" k="moneyness" align="right" />
+                <SortHeader label="ROI" k="roi" align="right" />
+                <SortHeader label="ROI Ann." k="roi_annualized" align="right" />
             </tr>
           </thead>
 
@@ -130,16 +132,16 @@ export default function OptionsScanTable() {
             {sortedRows.map((r, i) => (
               <tr key={`${r.ticker}-${r.exp}-${i}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <td>{r.ticker}</td>
-                <td>{r.trade_dt}</td>
+                <td>{fmtDate(r.trade_dt)}</td>
                 <td align="right">{r.spot == null ? "" : `$${fmtNum(r.spot, 2)}`}</td>
-                <td>{r.exp}</td>
-                <td align="right">{r.dte ?? ""}</td><td align="right">{r.dte ?? ""}</td>
+                <td>{fmtDate(r.exp)}</td>
+                <td align="right">{r.dte}</td>
                 <td align="right">{r.strike == null ? "" : `$${fmtNum(r.strike, 2)}`}</td>
                 <td align="right">{r.premium == null ? "" : `$${fmtNum(r.premium, 2)}`}</td>
                 <td align="right">{fmtPct(r.iv, 1)}</td>
                 <td align="right">{fmtNum(r.delta, 3)}</td>
                 <td align="right">{fmtPct(r.pop, 1)}</td>
-                <td align="right">{fmtNum(r.moneyness, 3)}</td>
+                <td align="right">{fmtNum(r.moneyness, 2)}</td>
                 <td align="right">{fmtPct(r.roi, 1)}</td>
                 <td align="right">{fmtPct(r.roi_annualized, 1)}</td>
               </tr>
