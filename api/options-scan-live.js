@@ -225,6 +225,8 @@ export default async function handler(req, res) {
 
             // require high probability of profit
             if (win_rate != null && win_rate < 90) continue;
+            // require sufficient moneyness buffer
+            if (moneyness == null || moneyness <= 0.85) continue;
 
             out.push({
               ticker: symbol,
@@ -268,8 +270,7 @@ export default async function handler(req, res) {
     const payloadArr = Array.from(bestByTicker.values());
     payloadArr.sort((a, b) => (b.roi_annualized ?? -1) - (a.roi_annualized ?? -1));
 
-    const payload = symbolParam ? payloadArr : payloadArr.slice(0, 100);
-    res.status(200).json(payload);
+    res.status(200).json(payloadArr);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
