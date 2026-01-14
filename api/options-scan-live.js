@@ -126,6 +126,7 @@ export default async function handler(req, res) {
 
             const roi = (premium / strike) * 100;
             const roi_annualized = dte > 0 ? (premium / strike) * (365 / dte) * 100 : null;
+            const moneyness = strike ? spot / strike : null; // >1 means OTM buffer for puts
 
             out.push({
               ticker: symbol,
@@ -137,7 +138,8 @@ export default async function handler(req, res) {
               premium,
               iv: iv_pct,
               delta,
-              win_rate,
+              pop: win_rate,
+              moneyness,
               roi,
               roi_annualized,
             });
