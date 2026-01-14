@@ -144,6 +144,9 @@ export default async function handler(req, res) {
             const roi_annualized = dte > 0 ? (premium / strike) * (365 / dte) * 100 : null;
             const moneyness = spot ? strike / spot : null; // <1 means OTM for puts
 
+            // require high probability of profit
+            if (win_rate != null && win_rate < 90) continue;
+
             out.push({
               ticker: symbol,
               trade_dt,
