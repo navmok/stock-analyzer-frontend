@@ -11,10 +11,8 @@ const fmtPct = (x, digits = 1) => {
   if (x == null) return "";
   const n = Number(x);
   if (Number.isNaN(n)) return "";
-  // If your DB stores 0.25 = 25% (fraction), keep this:
-  return `${(n * 100).toFixed(digits)}%`;
-  // If your DB stores 25 = 25 (already percent), use instead:
-  // return `${n.toFixed(digits)}%`;
+  // Values coming from both /api/options-scan and /api/options-scan-live are already in percent units.
+  return `${n.toFixed(digits)}%`;
 };
 
 const fmtDate = (d) => (d ? String(d).slice(0, 10) : "");
