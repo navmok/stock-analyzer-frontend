@@ -22,29 +22,26 @@ function daysBetween(yyyyMmDdA, yyyyMmDdB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
-async function fetchUnderlyingSpot(symbol, apiKey, exp) {
+async function fetchUnderlyingSpot(symbol, apiKey) {
   const url =
-  `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}` +
-  `?apiKey=${encodeURIComponent(apiKey)}` +
-  `&contract_type=put` +
-  `&expiration_date=${encodeURIComponent(exp)}` +
-  `&limit=250`;
+    `https://api.massive.com/v2/aggs/ticker/${encodeURIComponent(symbol)}/prev` +
+    `?adjusted=true&apiKey=${encodeURIComponent(apiKey)}`;
+
   const r = await fetch(url);
   if (!r.ok) return null;
+
   const j = await r.json();
+  const agg = Array.isArray(j?.results) ? j.results[0] : null;
 
-  // handle both shapes: {results:{...}} or {results:[{...}]}
-  const it = Array.isArray(j?.results) ? j.results[0] : j?.results;
-
-  const spot =
-    num(it?.day?.close) ??
-    num(it?.day?.vw) ??
-    num(it?.last_trade?.price) ??
-    num(it?.last_trade?.p) ??
-    num(it?.last_quote?.midpoint) ??
-    num(it?.last_quote?.p);
-
-  return spot;
+  // prefer close, then vwap, then open/high/low
+  return (
+    num(agg?.c) ??
+    num(agg?.vw) ??
+    num(agg?.o) ??
+    num(agg?.h) ??
+    num(agg?.l) ??
+    null
+  );
 }
 
 function num(x) {
@@ -81,7 +78,12 @@ export default async function handler(req, res) {
 
       const results = await Promise.allSettled(
         batch.map(async ({ symbol }) => {
-          const url = `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}?apiKey=${encodeURIComponent(apiKey)}`;
+          const url =
+            `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}` +
+            `?apiKey=${encodeURIComponent(apiKey)}` +
+            `&contract_type=put` +
+            `&expiration_date=${encodeURIComponent(exp)}` +
+            `&limit=250`;
           const r = await fetch(url);
           if (!r.ok) throw new Error(`HTTP ${r.status} for ${symbol}`);
           const j = await r.json();
@@ -91,10 +93,10 @@ export default async function handler(req, res) {
           if (!arr.length) return;
 
           // Underlying spot (stock price)
-          const spot = await fetchUnderlyingSpot(symbol, apiKey, exp);
+          const spot = await fetchUnderlyingSpot(symbol, apiKey);
           if (spot == null) return;
 
-          const minStrike = spot * 0.95; // 0–5% OTM
+          const minStrike = spot * 0.95; // within ~5% below spot
           const maxStrike = spot;        // OTM puts only
 
           for (const it of arr) {
@@ -109,13 +111,13 @@ export default async function handler(req, res) {
             const delta = num(it?.greeks?.delta);
             const iv = num(it?.implied_volatility); // decimal (e.g., 0.32)
             const bid = num(it?.last_quote?.bid);
-          const ask = num(it?.last_quote?.ask);
+            const ask = num(it?.last_quote?.ask);
 
-          let premium = null;
-          if (bid != null && ask != null) premium = (bid + ask) / 2;
-          else if (bid != null) premium = bid;
-          else if (ask != null) premium = ask;
-          else premium = num(it?.day?.close); // fallback to option close
+            let premium = null;
+            if (bid != null && ask != null) premium = (bid + ask) / 2;
+            else if (bid != null) premium = bid;
+            else if (ask != null) premium = ask;
+            else premium = num(it?.day?.close); // fallback to option close
 
             if (premium == null || premium <= 0) continue;
 
