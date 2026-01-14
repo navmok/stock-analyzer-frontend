@@ -102,13 +102,13 @@ export default async function handler(req, res) {
             const delta = num(it?.greeks?.delta);
             const iv = num(it?.implied_volatility); // decimal (e.g., 0.32)
             const bid = num(it?.last_quote?.bid);
-            const ask = num(it?.last_quote?.ask);
+          const ask = num(it?.last_quote?.ask);
 
-            let premium = null;
-            if (bid != null && ask != null) premium = (bid + ask) / 2;
-            else if (bid != null) premium = bid;
-            else if (ask != null) premium = ask;
-            else premium = num(it?.day?.close); // fallback to option close
+          let premium = null;
+          if (bid != null && ask != null) premium = (bid + ask) / 2;
+          else if (bid != null) premium = bid;
+          else if (ask != null) premium = ask;
+          else premium = num(it?.day?.close); // fallback to option close
 
             if (premium == null || premium <= 0) continue;
 
