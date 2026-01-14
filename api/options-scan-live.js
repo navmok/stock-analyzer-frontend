@@ -6,6 +6,35 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes("neon.tech") ? { rejectUnauthorized: false } : undefined,
 });
 
+// Yahoo crumb/cookie session cache
+let yahooSession = null; // { cookie: string, crumb: string, ts: number }
+async function ensureYahooSession() {
+  const FRESH_MS = 10 * 60 * 1000; // refresh every 10 minutes
+  if (yahooSession && Date.now() - yahooSession.ts < FRESH_MS) return yahooSession;
+
+  // Step 1: get cookie from fc.yahoo.com
+  const bootstrap = await fetch("https://fc.yahoo.com", { redirect: "follow" });
+  const setCookie =
+    typeof bootstrap.headers.getSetCookie === "function"
+      ? bootstrap.headers.getSetCookie()
+      : null;
+  const cookie = Array.isArray(setCookie)
+    ? setCookie.map((c) => c.split(";")[0]).join("; ")
+    : null;
+  if (!cookie) return null;
+
+  // Step 2: get crumb using that cookie
+  const crumbResp = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+    headers: { Cookie: cookie, "User-Agent": "Mozilla/5.0" },
+  });
+  if (!crumbResp.ok) return null;
+  const crumb = (await crumbResp.text())?.trim();
+  if (!crumb) return null;
+
+  yahooSession = { cookie, crumb, ts: Date.now() };
+  return yahooSession;
+}
+
 function nextFridayISO() {
   // returns YYYY-MM-DD for the upcoming Friday (in local time)
   const d = new Date();
@@ -28,16 +57,40 @@ async function fetchYahooOptions(symbol, expIso) {
   const cacheKey = `${symbol}-${expIso}`;
   if (yahooChainCache.has(cacheKey)) return yahooChainCache.get(cacheKey);
 
-  const [y, m, d] = expIso.split("-").map(Number);
-  const dt = Date.UTC(y, m - 1, d) / 1000; // seconds
-  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?date=${dt}`;
-
-  const r = await fetch(url);
-  if (!r.ok) {
+  const session = await ensureYahooSession();
+  if (!session) {
     yahooChainCache.set(cacheKey, null);
     return null;
   }
-  const j = await r.json();
+
+  const [y, m, d] = expIso.split("-").map(Number);
+  const dt = Date.UTC(y, m - 1, d) / 1000; // seconds
+  const baseUrl = `https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?date=${dt}&crumb=${encodeURIComponent(session.crumb)}`;
+
+  // try once; on 401 refresh session and retry
+  async function loadOptions() {
+    const r = await fetch(baseUrl, {
+      headers: { Cookie: session.cookie, "User-Agent": "Mozilla/5.0" },
+    });
+    if (r.status === 401) {
+      yahooSession = null;
+      const fresh = await ensureYahooSession();
+      if (!fresh) return null;
+      return fetch(
+        `https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?date=${dt}&crumb=${encodeURIComponent(fresh.crumb)}`,
+        { headers: { Cookie: fresh.cookie, "User-Agent": "Mozilla/5.0" } }
+      );
+    }
+    return r;
+  }
+
+  const resp = await loadOptions();
+  if (!resp || !resp.ok) {
+    yahooChainCache.set(cacheKey, null);
+    return null;
+  }
+
+  const j = await resp.json();
   const res = j?.optionChain?.result?.[0];
   const opt = res?.options?.[0];
   const puts = Array.isArray(opt?.puts) ? opt.puts : [];
