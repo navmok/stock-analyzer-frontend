@@ -14,6 +14,7 @@ import Chart from "react-apexcharts";  // ⬅️ NEW
 import HedgeFundTable from "./HedgeFundTable.jsx";
 import OptionsChain from "./OptionsChain.jsx";
 import LiveChart from "./LiveChart.jsx";
+import OptionsScanTable from "./OptionsScanTable.jsx";
 
 // ✅ Always call the same deployment (same-origin)
 const API_BASE = "";
@@ -230,7 +231,7 @@ const LINE_COLORS = ["#60a5fa", "#22c55e", "#f97316", "#a855f7", "#e11d48"];
 
 export default function App() {
   // NEW: which page/tab is visible
-  const [activeTab, setActiveTab] = useState("stocks"); // "stocks" | "hedgefunds"
+  const [activeTab, setActiveTab] = useState("stocks"); // "stocks" | "hedgefunds" | "optionsscan"
   // 1–5 stocks in view
   const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
   // primary symbol for "Latest" + MAs
@@ -1003,38 +1004,50 @@ useEffect(() => {
       <header className="app-header">
         <h1>📈 Stock Dashboard (MVP)</h1>
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab("stocks")}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid #4b5563",
-              background: activeTab === "stocks" ? "#2563eb" : "transparent",
-              color: "#e5e7eb",
-              cursor: "pointer",
-            }}
-          >
-            Stocks
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("stocks")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #4b5563",
+            background: activeTab === "stocks" ? "#2563eb" : "transparent",
+            color: "#e5e7eb",
+            cursor: "pointer",
+          }}
+        >
+          Stocks
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("hedgefunds")}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid #4b5563",
-              background: activeTab === "hedgefunds" ? "#2563eb" : "transparent",
-              color: "#e5e7eb",
-              cursor: "pointer",
-            }}
-          >
-            Hedge Funds
-          </button>
-        </div>
-      </header>
+        <button
+          type="button"
+          onClick={() => setActiveTab("hedgefunds")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #4b5563",
+            background: activeTab === "hedgefunds" ? "#2563eb" : "transparent",
+            color: "#e5e7eb",
+            cursor: "pointer",
+          }}
+        >
+          Hedge Funds
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("optionsscan")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #4b5563",
+            background: activeTab === "optionsscan" ? "#2563eb" : "transparent",
+            color: "#e5e7eb",
+            cursor: "pointer",
+          }}
+        >
+          Options Scan
+        </button>
 
       {activeTab === "stocks" && (
         <section className="controls">
@@ -1657,6 +1670,8 @@ useEffect(() => {
 
 
         {activeTab === "hedgefunds" && <HedgeFundTable />}
+
+        {activeTab === "optionsscan" && <OptionsScanTable />}
       </main>
     </div>
   );
