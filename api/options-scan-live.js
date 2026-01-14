@@ -22,6 +22,24 @@ function daysBetween(yyyyMmDdA, yyyyMmDdB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
+async function fetchUnderlyingSpot(symbol, apiKey) {
+  const url = `https://api.massive.com/v3/snapshot/stocks/${encodeURIComponent(symbol)}?apiKey=${encodeURIComponent(apiKey)}`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const j = await r.json();
+
+  // handle both shapes: {results:{...}} or {results:[{...}]}
+  const it = Array.isArray(j?.results) ? j.results[0] : j?.results;
+
+  const spot =
+    num(it?.day?.close) ??
+    num(it?.last_trade?.price) ??
+    num(it?.last_trade?.p) ??
+    num(it?.lastQuote?.p);
+
+  return spot;
+}
+
 function num(x) {
   const n = Number(x);
   return Number.isFinite(n) ? n : null;
@@ -65,16 +83,8 @@ export default async function handler(req, res) {
           const arr = Array.isArray(j.results) ? j.results : [];
           if (!arr.length) return;
 
-          // Spot (use underlying day close if present; fallback null)
-          // Many results include day.close; take the first with day.close
-          let spot = null;
-          for (const it of arr) {
-            const c = num(it?.day?.close);
-            if (c != null) {
-              spot = c;
-              break;
-            }
-          }
+          // Underlying spot (stock price)
+          const spot = await fetchUnderlyingSpot(symbol, apiKey);
           if (spot == null) return;
 
           const minStrike = spot * 0.95; // 0–5% OTM
@@ -93,7 +103,12 @@ export default async function handler(req, res) {
             const iv = num(it?.implied_volatility); // decimal (e.g., 0.32)
             const bid = num(it?.last_quote?.bid);
             const ask = num(it?.last_quote?.ask);
-            const premium = bid != null ? bid : (bid == null && ask != null ? ask : (bid != null && ask != null ? (bid + ask) / 2 : null));
+
+            let premium = null;
+            if (bid != null && ask != null) premium = (bid + ask) / 2;
+            else if (bid != null) premium = bid;
+            else if (ask != null) premium = ask;
+            else premium = num(it?.day?.close); // fallback to option close
 
             if (premium == null || premium <= 0) continue;
 
