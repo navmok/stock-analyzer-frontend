@@ -22,28 +22,6 @@ function daysBetween(yyyyMmDdA, yyyyMmDdB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
-async function fetchUnderlyingSpot(symbol, apiKey) {
-  const url =
-    `https://api.massive.com/v2/aggs/ticker/${encodeURIComponent(symbol)}/prev` +
-    `?adjusted=true&apiKey=${encodeURIComponent(apiKey)}`;
-
-  const r = await fetch(url);
-  if (!r.ok) return null;
-
-  const j = await r.json();
-  const agg = Array.isArray(j?.results) ? j.results[0] : null;
-
-  // prefer close, then vwap, then open/high/low
-  return (
-    num(agg?.c) ??
-    num(agg?.vw) ??
-    num(agg?.o) ??
-    num(agg?.h) ??
-    num(agg?.l) ??
-    null
-  );
-}
-
 function num(x) {
   const n = Number(x);
   return Number.isFinite(n) ? n : null;
@@ -55,9 +33,9 @@ export default async function handler(req, res) {
 
     // 1) top tickers from existing table in Neon
     const { rows: tickers } = await pool.query(
-      `SELECT DISTINCT ticker AS symbol
+      `SELECT DISTINCT ON (ticker) ticker AS symbol, spot
       FROM public.sell_put_candidates_agg
-      ORDER BY ticker
+      ORDER BY ticker, trade_dt DESC
       LIMIT $1`,
       [limit]
     );
@@ -70,14 +48,14 @@ export default async function handler(req, res) {
     const dte = Math.max(daysBetween(trade_dt, exp), 0);
 
     // 2) fetch snapshots in parallel (but not too aggressive)
-    const BATCH = 10;
+    const BATCH = 25;
     const out = [];
 
     for (let i = 0; i < tickers.length; i += BATCH) {
       const batch = tickers.slice(i, i + BATCH);
 
       const results = await Promise.allSettled(
-        batch.map(async ({ symbol }) => {
+        batch.map(async ({ symbol, spot: dbSpot }) => {
           const url =
             `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}` +
             `?apiKey=${encodeURIComponent(apiKey)}` +
@@ -92,8 +70,8 @@ export default async function handler(req, res) {
           const arr = Array.isArray(j.results) ? j.results : [];
           if (!arr.length) return;
 
-          // Underlying spot (stock price)
-          const spot = await fetchUnderlyingSpot(symbol, apiKey);
+          // Underlying spot (stock price) — use latest from DB to avoid extra API rate limits
+          const spot = num(dbSpot);
           if (spot == null) return;
 
           const minStrike = spot * 0.95; // within ~5% below spot
