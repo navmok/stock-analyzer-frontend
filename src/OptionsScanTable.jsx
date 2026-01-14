@@ -116,6 +116,8 @@ export default function OptionsScanTable() {
                 <SortHeader label="Exp" k="exp" />
                 <SortHeader label="DTE" k="dte" align="right" />
                 <SortHeader label="Strike" k="strike" align="right" />
+                <SortHeader label="Bid" k="bid" align="right" />
+                <SortHeader label="Ask" k="ask" align="right" />
                 <SortHeader label="Premium" k="premium" align="right" />
                 <SortHeader label="IV" k="iv" align="right" />
                 <SortHeader label="Delta" k="delta" align="right" />
@@ -135,6 +137,8 @@ export default function OptionsScanTable() {
                 <td>{fmtDate(r.exp)}</td>
                 <td align="right">{r.dte}</td>
                 <td align="right">{r.strike == null ? "" : `$${fmtNum(r.strike, 2)}`}</td>
+                <td align="right">{r.bid == null ? "" : `$${fmtNum(r.bid, 2)}`}</td>
+                <td align="right">{r.ask == null ? "" : `$${fmtNum(r.ask, 2)}`}</td>
                 <td align="right">{r.premium == null ? "" : `$${fmtNum(r.premium, 2)}`}</td>
                 <td align="right">{fmtPct(r.iv, 1)}</td>
                 <td align="right">{fmtNum(r.delta, 3)}</td>
