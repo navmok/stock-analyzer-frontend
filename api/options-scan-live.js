@@ -132,11 +132,7 @@ export default async function handler(req, res) {
     // 3) return top 100 opportunities by annualized ROI
     out.sort((a, b) => (b.roi_annualized ?? -1) - (a.roi_annualized ?? -1));
 
-    res.status(200).json({
-      exp,
-      count: Math.min(out.length, 100),
-      rows: out.slice(0, 100),
-    });
+    res.status(200).json(out.slice(0, 100));
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
