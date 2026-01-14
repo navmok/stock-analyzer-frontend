@@ -21,24 +21,20 @@ export default async function handler(req, res) {
 
     const sql = `
       SELECT
-        symbol,
+        ticker,
+        ROUND(roi_annualized::numeric, 2) AS roi_annualized,
         trade_dt,
-        spot,
+        ROUND(spot::numeric, 2)           AS spot,
         exp,
         dte,
-        premium,
-        iv,
-        delta,
-        pop,
-        moneyness,
-        roi,
-        roi_annualized
-      FROM public.sell_put_candidates_v1
-      WHERE roi_annualized = (
-        SELECT MAX(roi_annualized)
-        FROM public.sell_put_candidates_v1 AS sub
-        WHERE sub.symbol = sell_put_candidates_v1.symbol
-      )
+        ROUND(strike::numeric, 2)         AS strike,
+        ROUND(premium::numeric, 2)        AS premium,
+        ROUND(iv::numeric, 2)             AS iv,
+        ROUND(delta::numeric, 2)          AS delta,
+        ROUND(pop::numeric, 2)            AS pop,
+        ROUND(moneyness::numeric, 2)      AS moneyness,
+        ROUND(roi::numeric, 2)            AS roi
+      FROM public.sell_put_candidates_agg
       ORDER BY roi_annualized DESC
       LIMIT $1;
     `;

@@ -110,7 +110,7 @@ export default function OptionsScanTable() {
         <table width="100%" cellPadding="6" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-              <SortHeader label="Symbol" k="symbol" />
+              <SortHeader label="Ticker" k="ticker" />
               <SortHeader label="Trade Date" k="trade_dt" />
               <SortHeader label="Spot" k="spot" align="right" />
               <SortHeader label="Exp" k="exp" />
@@ -127,8 +127,8 @@ export default function OptionsScanTable() {
 
           <tbody>
             {sortedRows.map((r, i) => (
-              <tr key={`${r.symbol}-${r.exp}-${i}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <td>{r.symbol}</td>
+              <tr key={`${r.ticker}-${r.exp}-${i}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <td>{r.ticker}</td>
                 <td>{r.trade_dt}</td>
                 <td align="right">{r.spot == null ? "" : `$${fmtNum(r.spot, 2)}`}</td>
                 <td>{r.exp}</td>
