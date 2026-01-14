@@ -154,7 +154,7 @@ export default async function handler(req, res) {
       const { rows } = await pool.query(
         `SELECT DISTINCT ticker AS symbol
         FROM public.sell_put_candidates_agg
-        ORDER BY ticker
+        ORDER BY RANDOM()
         LIMIT $1`,
         [limit]
       );
