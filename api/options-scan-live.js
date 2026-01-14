@@ -31,12 +31,12 @@ export default async function handler(req, res) {
   try {
     const limit = Math.min(Number(req.query.limit || 100), 200);
 
-    // 1) top 100 tickers (simple)
+    // 1) top tickers from existing table in Neon
     const { rows: tickers } = await pool.query(
-      `SELECT symbol
-       FROM public.universe_symbols
-       ORDER BY symbol
-       LIMIT $1`,
+      `SELECT DISTINCT ticker AS symbol
+      FROM public.sell_put_candidates_agg
+      ORDER BY ticker
+      LIMIT $1`,
       [limit]
     );
 
