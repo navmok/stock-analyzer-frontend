@@ -1261,6 +1261,7 @@ useEffect(() => {
           </div>
         </section>
       )}
+      </header>
 
       <main>
         {activeTab === "stocks" && (
