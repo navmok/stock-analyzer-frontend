@@ -182,9 +182,11 @@ export default async function handler(req, res) {
             else if (ask != null) premium = ask;
             else premium = num(it?.lastPrice); // fallback to last trade
 
+            // Require a positive bid to consider the trade; otherwise skip (avoid inflated ROI on zero-bid)
+            if (bid == null || bid <= 0) continue;
             if (premium == null || premium <= 0) continue;
 
-            const roiBase = bid != null && bid > 0 ? bid : premium;
+            const roiBase = bid;
 
             const win_rate = delta == null ? null : (1 - Math.abs(delta)) * 100;
             const iv_pct = iv == null ? null : iv * 100;
