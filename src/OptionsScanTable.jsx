@@ -49,7 +49,7 @@ export default function OptionsScanTable() {
         const r = await fetch("/api/options-scan-live?limit=100");
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
-        if (!cancelled) setRows(Array.isArray(j) ? j : []);
+        if (!cancelled) setRows(Array.isArray(j?.rows) ? j.rows : (Array.isArray(j) ? j : []));
       } catch (e) {
         if (!cancelled) setErr(String(e?.message || e));
       } finally {
