@@ -255,10 +255,20 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3) return results (sorted for consistency)
-    out.sort((a, b) => (b.roi_annualized ?? -1) - (a.roi_annualized ?? -1));
+    // 3) keep only best ROI entry per ticker
+    const bestByTicker = new Map();
+    for (const row of out) {
+      const key = row.ticker;
+      const prev = bestByTicker.get(key);
+      const score = row.roi_annualized ?? -Infinity;
+      const prevScore = prev?.roi_annualized ?? -Infinity;
+      if (!prev || score > prevScore) bestByTicker.set(key, row);
+    }
 
-    const payload = symbolParam ? out : out.slice(0, 100);
+    const payloadArr = Array.from(bestByTicker.values());
+    payloadArr.sort((a, b) => (b.roi_annualized ?? -1) - (a.roi_annualized ?? -1));
+
+    const payload = symbolParam ? payloadArr : payloadArr.slice(0, 100);
     res.status(200).json(payload);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
