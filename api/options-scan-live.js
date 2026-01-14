@@ -22,26 +22,36 @@ function daysBetween(yyyyMmDdA, yyyyMmDdB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
-async function fetchUnderlyingSpot(symbol, apiKey) {
-  const url =
-    `https://api.massive.com/v2/aggs/ticker/${encodeURIComponent(symbol)}/prev` +
-    `?adjusted=true&apiKey=${encodeURIComponent(apiKey)}`;
+// Yahoo Finance option chain (source of spot + bid/ask)
+const yahooChainCache = new Map();
+async function fetchYahooOptions(symbol, expIso) {
+  const cacheKey = `${symbol}-${expIso}`;
+  if (yahooChainCache.has(cacheKey)) return yahooChainCache.get(cacheKey);
+
+  const [y, m, d] = expIso.split("-").map(Number);
+  const dt = Date.UTC(y, m - 1, d) / 1000; // seconds
+  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?date=${dt}`;
 
   const r = await fetch(url);
-  if (!r.ok) return null;
-
+  if (!r.ok) {
+    yahooChainCache.set(cacheKey, null);
+    return null;
+  }
   const j = await r.json();
-  const agg = Array.isArray(j?.results) ? j.results[0] : null;
+  const res = j?.optionChain?.result?.[0];
+  const opt = res?.options?.[0];
+  const puts = Array.isArray(opt?.puts) ? opt.puts : [];
+  const quote = res?.quote || {};
+  const spot =
+    num(quote.regularMarketPrice) ??
+    num(quote.bid) ??
+    num(quote.ask) ??
+    num(quote.previousClose) ??
+    null;
 
-  // prefer close, then vwap, then open/high/low
-  return (
-    num(agg?.c) ??
-    num(agg?.vw) ??
-    num(agg?.o) ??
-    num(agg?.h) ??
-    num(agg?.l) ??
-    null
-  );
+  const payload = { puts, spot };
+  yahooChainCache.set(cacheKey, payload);
+  return payload;
 }
 
 function num(x) {
@@ -73,9 +83,6 @@ export default async function handler(req, res) {
       tickers = rows;
     }
 
-    const apiKey = process.env.POLYGON_API_KEY || process.env.MASSIVE_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Missing POLYGON_API_KEY / MASSIVE_API_KEY" });
-
     const exp = nextFridayISO();
     const trade_dt = new Date().toISOString().slice(0, 10);
     const dte = Math.max(daysBetween(trade_dt, exp), 0);
@@ -90,50 +97,37 @@ export default async function handler(req, res) {
 
       const results = await Promise.allSettled(
         batch.map(async ({ symbol }) => {
-          const url =
-            `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}` +
-            `?apiKey=${encodeURIComponent(apiKey)}` +
-            `&contract_type=put` +
-            `&expiration_date=${encodeURIComponent(exp)}` +
-            `&limit=250`;
-          const r = await fetch(url);
-          if (!r.ok) throw new Error(`HTTP ${r.status} for ${symbol}`);
-          const j = await r.json();
+          // Yahoo Finance option chain for this expiry
+          const chain = await fetchYahooOptions(symbol, exp);
+          if (!chain) return;
 
-          // Massive returns { results: [ ...contracts... ] }
-          const arr = Array.isArray(j.results) ? j.results : [];
-          if (!arr.length) return;
-
-          // Underlying spot (stock price) from Polygon/ Massive (cache per symbol)
-          let spot = spotCache.get(symbol);
-          if (spot == null) {
-            spot = await fetchUnderlyingSpot(symbol, apiKey);
-            if (spot != null) spotCache.set(symbol, spot);
-          }
-          if (spot == null) return;
+          const puts = Array.isArray(chain.puts) ? chain.puts : [];
+          const spot = chain.spot;
+          if (!puts.length || spot == null) return;
 
           const minStrike = 0;           // keep all strikes below spot
           const maxStrike = spot;        // OTM puts only (strict)
 
-          for (const it of arr) {
-            const details = it?.details || {};
-            if (details.contract_type !== "put") continue;
-            if (details.expiration_date !== exp) continue;
+          for (const it of puts) {
+            // Yahoo returns expiration as seconds since epoch
+            const expSec = num(it?.expiration);
+            const expIso = expSec ? new Date(expSec * 1000).toISOString().slice(0, 10) : null;
+            if (expIso !== exp) continue;
 
-            const strike = num(details.strike_price);
+            const strike = num(it?.strike);
             if (strike == null) continue;
             if (strike >= maxStrike || strike < minStrike) continue; // only OTM puts
 
-            const delta = num(it?.greeks?.delta);
-            const iv = num(it?.implied_volatility); // decimal (e.g., 0.32)
-            const bid = num(it?.last_quote?.bid);
-            const ask = num(it?.last_quote?.ask);
+            const delta = num(it?.delta);
+            const iv = num(it?.impliedVolatility); // decimal (e.g., 0.32)
+            const bid = num(it?.bid);
+            const ask = num(it?.ask);
 
             let premium = null;
             if (bid != null && ask != null) premium = (bid + ask) / 2;
             else if (bid != null) premium = bid;
             else if (ask != null) premium = ask;
-            else premium = num(it?.day?.close); // fallback to option close
+            else premium = num(it?.lastPrice); // fallback to last trade
 
             if (premium == null || premium <= 0) continue;
 
