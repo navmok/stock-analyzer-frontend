@@ -40,8 +40,8 @@ export default async function handler(req, res) {
       [limit]
     );
 
-    const apiKey = process.env.MASSIVE_API_KEY; // set in Vercel env vars
-    if (!apiKey) return res.status(500).json({ error: "Missing MASSIVE_API_KEY" });
+    const apiKey = process.env.POLYGON_API_KEY || process.env.MASSIVE_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Missing POLYGON_API_KEY / MASSIVE_API_KEY" });
 
     const exp = nextFridayISO();
     const trade_dt = new Date().toISOString().slice(0, 10);
