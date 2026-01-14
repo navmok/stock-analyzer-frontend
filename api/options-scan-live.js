@@ -52,15 +52,26 @@ function num(x) {
 export default async function handler(req, res) {
   try {
     const limit = Math.min(Number(req.query.limit || 100), 200);
+    const symbolParam = (req.query.symbol || "").trim();
 
-    // 1) top tickers from existing table in Neon
-    const { rows: tickers } = await pool.query(
-      `SELECT DISTINCT ticker AS symbol
-      FROM public.sell_put_candidates_agg
-      ORDER BY ticker
-      LIMIT $1`,
-      [limit]
-    );
+    // 1) pick tickers: either explicit ?symbol=GOOGL (comma-separated) or fallback to DB list
+    let tickers = [];
+    if (symbolParam) {
+      tickers = symbolParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((symbol) => ({ symbol: symbol.toUpperCase() }));
+    } else {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT ticker AS symbol
+        FROM public.sell_put_candidates_agg
+        ORDER BY ticker
+        LIMIT $1`,
+        [limit]
+      );
+      tickers = rows;
+    }
 
     const apiKey = process.env.POLYGON_API_KEY || process.env.MASSIVE_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Missing POLYGON_API_KEY / MASSIVE_API_KEY" });
@@ -101,8 +112,8 @@ export default async function handler(req, res) {
           }
           if (spot == null) return;
 
-          const minStrike = spot * 0.95; // within ~5% below spot
-          const maxStrike = spot;        // OTM puts only
+          const minStrike = 0;           // keep all strikes below spot
+          const maxStrike = spot;        // OTM puts only (strict)
 
           for (const it of arr) {
             const details = it?.details || {};
@@ -111,7 +122,7 @@ export default async function handler(req, res) {
 
             const strike = num(details.strike_price);
             if (strike == null) continue;
-            if (strike < minStrike || strike > maxStrike) continue; // OTM only, within 5%
+            if (strike >= maxStrike || strike < minStrike) continue; // only OTM puts
 
             const delta = num(it?.greeks?.delta);
             const iv = num(it?.implied_volatility); // decimal (e.g., 0.32)
@@ -131,7 +142,7 @@ export default async function handler(req, res) {
 
             const roi = (premium / strike) * 100;
             const roi_annualized = dte > 0 ? (premium / strike) * (365 / dte) * 100 : null;
-            const moneyness = strike ? spot / strike : null; // >1 means OTM buffer for puts
+            const moneyness = spot ? strike / spot : null; // <1 means OTM for puts
 
             out.push({
               ticker: symbol,
@@ -160,10 +171,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3) return top 100 opportunities by annualized ROI
+    // 3) return results (sorted for consistency)
     out.sort((a, b) => (b.roi_annualized ?? -1) - (a.roi_annualized ?? -1));
 
-    res.status(200).json(out.slice(0, 100));
+    const payload = symbolParam ? out : out.slice(0, 100);
+    res.status(200).json(payload);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
