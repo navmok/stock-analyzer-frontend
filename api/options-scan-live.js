@@ -23,12 +23,7 @@ function daysBetween(yyyyMmDdA, yyyyMmDdB) {
 }
 
 async function fetchUnderlyingSpot(symbol, apiKey) {
-  const url =
-  `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}` +
-  `?apiKey=${encodeURIComponent(apiKey)}` +
-  `&contract_type=put` +
-  `&expiration_date=${encodeURIComponent(exp)}` +
-  `&limit=250`;
+  const url = `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}?apiKey=${encodeURIComponent(apiKey)}`;
   const r = await fetch(url);
   if (!r.ok) return null;
   const j = await r.json();
