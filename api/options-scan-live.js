@@ -139,7 +139,7 @@ function bsPutDelta(spot, strike, iv, dte) {
 
 export default async function handler(req, res) {
   try {
-    const limit = Math.min(Number(req.query.limit || 100), 200);
+    const limit = Math.min(Number(req.query.limit || 500), 1000);
     const symbolParam = (req.query.symbol || "").trim();
 
     // 1) pick tickers: either explicit ?symbol=GOOGL (comma-separated) or fallback to DB list
