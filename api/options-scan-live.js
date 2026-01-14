@@ -184,11 +184,13 @@ export default async function handler(req, res) {
 
             if (premium == null || premium <= 0) continue;
 
+            const roiBase = bid != null && bid > 0 ? bid : premium;
+
             const win_rate = delta == null ? null : (1 - Math.abs(delta)) * 100;
             const iv_pct = iv == null ? null : iv * 100;
 
-            const roi = (premium / strike) * 100;
-            const roi_annualized = dte > 0 ? (premium / strike) * (365 / dte) * 100 : null;
+            const roi = (roiBase / strike) * 100;
+            const roi_annualized = dte > 0 ? (roiBase / strike) * (365 / dte) * 100 : null;
             const moneyness = spot ? strike / spot : null; // <1 means OTM for puts
 
             // require high probability of profit
@@ -201,6 +203,8 @@ export default async function handler(req, res) {
               exp,
               dte,
               strike,
+              bid,
+              ask,
               premium,
               iv: iv_pct,
               delta,
