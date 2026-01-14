@@ -22,7 +22,7 @@ function daysBetween(yyyyMmDdA, yyyyMmDdB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
-async function fetchUnderlyingSpot(symbol, apiKey) {
+async function fetchUnderlyingSpot(symbol, apiKey, exp) {
   const url =
   `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(symbol)}` +
   `?apiKey=${encodeURIComponent(apiKey)}` +
@@ -38,9 +38,11 @@ async function fetchUnderlyingSpot(symbol, apiKey) {
 
   const spot =
     num(it?.day?.close) ??
+    num(it?.day?.vw) ??
     num(it?.last_trade?.price) ??
     num(it?.last_trade?.p) ??
-    num(it?.lastQuote?.p);
+    num(it?.last_quote?.midpoint) ??
+    num(it?.last_quote?.p);
 
   return spot;
 }
@@ -89,7 +91,7 @@ export default async function handler(req, res) {
           if (!arr.length) return;
 
           // Underlying spot (stock price)
-          const spot = await fetchUnderlyingSpot(symbol, apiKey);
+          const spot = await fetchUnderlyingSpot(symbol, apiKey, exp);
           if (spot == null) return;
 
           const minStrike = spot * 0.95; // 0–5% OTM
