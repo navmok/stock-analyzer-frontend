@@ -17,6 +17,12 @@ function numberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function toPercentUnits(raw) {
+  const n = numberOrNull(raw);
+  if (n == null) return null;
+  return Math.abs(n) <= 1 ? n * 100 : n;
+}
+
 function splitCsvLine(line) {
   const out = [];
   let cur = "";
@@ -113,10 +119,10 @@ function normalizeRow(row) {
     strike,
     moneyness,
     premium: numberOrNull(row.premium) ?? numberOrNull(row.bid_yf),
-    iv: numberOrNull(row.iv) ?? numberOrNull(row.implied_volatility),
+    iv: toPercentUnits(row.iv ?? row.implied_volatility),
     delta: numberOrNull(row.delta),
-    roi: numberOrNull(row.roi),
-    roi_annualized: numberOrNull(roiAnnRaw),
+    roi: toPercentUnits(row.roi),
+    roi_annualized: toPercentUnits(roiAnnRaw),
     option_ticker: optionTicker,
     expiry: row.expiry || row.exp || row.expiration_date || null,
     volume: numberOrNull(row.volume),
