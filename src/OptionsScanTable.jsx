@@ -89,10 +89,18 @@ export default function OptionsScanTable() {
     return arr;
   }, [rows, sortKey, sortDir]);
 
+  const headerStyle = {
+    position: "sticky",
+    top: 0,
+    background: "rgba(12, 18, 35, 0.9)",
+    backdropFilter: "blur(6px)",
+    zIndex: 2,
+  };
+
   const SortHeader = ({ label, k, align = "left" }) => (
     <th
       align={align}
-      style={{ cursor: "pointer", userSelect: "none" }}
+      style={{ cursor: "pointer", userSelect: "none", ...headerStyle }}
       onClick={() => toggleSort(k)}
       title="Click to sort"
     >
