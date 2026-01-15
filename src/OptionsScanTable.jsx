@@ -23,6 +23,7 @@ export default function OptionsScanTable() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+  const [dataset, setDataset] = useState("0.15"); // "0.15" | "0.1"
 
   // client-side sorting (default: roi_annualized desc)
   const [sortKey, setSortKey] = useState("roi_annualized");
@@ -47,7 +48,9 @@ export default function OptionsScanTable() {
       setErr("");
       try {
         const force = refreshTick > 0 ? "&refresh=1" : "";
-        const r = await fetch(`/api/options-metrics-yf?limit=200&moneyness=0.85${force}`);
+        const r = await fetch(
+          `/api/options-metrics-yf?limit=200&moneyness=0.85&dataset=${encodeURIComponent(dataset)}${force}`
+        );
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
         if (!cancelled) {
@@ -65,7 +68,7 @@ export default function OptionsScanTable() {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick]);
+  }, [refreshTick, dataset]);
 
   const sortedRows = useMemo(() => {
     const arr = [...rows];
@@ -123,16 +126,42 @@ export default function OptionsScanTable() {
     <div style={{ padding: 12 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>Options Metrics</h2>
-        <button onClick={() => setRefreshTick((x) => x + 1)} style={{ padding: "6px 10px" }}>
-          Refresh (force re-run)
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[
+              { label: "0.15 CSV", value: "0.15" },
+              { label: "0.10 CSV", value: "0.1" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setDataset(opt.value)}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #4b5563",
+                  background: dataset === opt.value ? "#2563eb" : "transparent",
+                  color: "#e5e7eb",
+                  cursor: "pointer",
+                  minWidth: 90,
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setRefreshTick((x) => x + 1)} style={{ padding: "6px 10px" }}>
+            Refresh (force re-run)
+          </button>
+        </div>
       </div>
 
       {err && <div style={{ marginTop: 10, color: "salmon" }}>{err}</div>}
       <div style={{ marginTop: 10, opacity: 0.8 }}>
         {loading
           ? "Loading..."
-          : `Showing ${sortedRows.length} rows${meta?.total ? ` of ${meta.total} filtered` : ""}`}
+          : `Showing ${sortedRows.length} rows${meta?.total ? ` of ${meta.total} filtered` : ""}${
+              meta?.dataset ? ` · dataset ${meta.dataset}` : ""
+            }`}
       </div>
 
       <div style={tableContainerStyle}>

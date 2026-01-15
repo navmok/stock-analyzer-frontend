@@ -2,10 +2,11 @@ import { readFile } from "fs/promises";
 import path from "path";
 
 // In production we cannot spawn Python; use a pre-generated CSV under /public by default.
-const DEFAULT_CSV_NAME = "scrape_bid_polygon_0.15.csv";
-const BID_CSV =
-  process.env.SCRAPE_BID_OUTPUT ||
-  path.join(process.cwd(), "public", DEFAULT_CSV_NAME);
+const DATASET_FILES = {
+  "0.15": "scrape_bid_polygon_0.15.csv",
+  "0.1": "scrape_bid_polygon_0.1.csv",
+};
+const DEFAULT_DATASET = "0.15";
 const BID_URL = process.env.SCRAPE_BID_URL || null;
 
 const DEFAULT_MONEYNESS = Number(process.env.MONEYNESS_THRESHOLD || 0.85);
@@ -139,18 +140,24 @@ export async function loadYfMetrics({
   moneynessFloor = DEFAULT_MONEYNESS,
   limit = DEFAULT_LIMIT,
   host = null,
+  dataset = DEFAULT_DATASET,
 } = {}) {
+  const datasetKey = DATASET_FILES[dataset] ? dataset : DEFAULT_DATASET;
+  const csvName = DATASET_FILES[datasetKey];
+  const bidCsvPath =
+    process.env.SCRAPE_BID_OUTPUT || path.join(process.cwd(), "public", csvName);
+
   let csvText = null;
-  let sourceUsed = BID_CSV;
+  let sourceUsed = bidCsvPath;
 
   try {
-    csvText = await readFile(BID_CSV, "utf8");
+    csvText = await readFile(bidCsvPath, "utf8");
   } catch (err) {
     // If the file is missing in the serverless bundle, fall back to an HTTP fetch
     const fallbackUrl =
       BID_URL ||
       (host
-        ? `${host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https"}://${host}/${DEFAULT_CSV_NAME}`
+        ? `${host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https"}://${host}/${csvName}`
         : null);
 
     if (!fallbackUrl) throw err;
@@ -184,6 +191,7 @@ export async function loadYfMetrics({
     meta: {
       refreshed: false,
       source: sourceUsed,
+      dataset: datasetKey,
       total: filtered.length,
       moneynessFloor,
     },
@@ -197,9 +205,10 @@ export default async function handler(req, res) {
       ? Number(req.query.moneyness)
       : DEFAULT_MONEYNESS;
     const limit = Math.min(pickPositive(req.query.limit, DEFAULT_LIMIT), 2000);
+    const dataset = typeof req.query.dataset === "string" ? req.query.dataset : DEFAULT_DATASET;
 
     const host = req?.headers?.host || null;
-    const data = await loadYfMetrics({ moneynessFloor, limit, host });
+    const data = await loadYfMetrics({ moneynessFloor, limit, host, dataset });
     res.status(200).json(data);
   } catch (err) {
     res.status(500).json({

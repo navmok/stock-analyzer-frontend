@@ -231,7 +231,7 @@ const LINE_COLORS = ["#60a5fa", "#22c55e", "#f97316", "#a855f7", "#e11d48"];
 
 export default function App() {
   // NEW: which page/tab is visible
-  const [activeTab, setActiveTab] = useState("stocks"); // "stocks" | "hedgefunds" | "optionsscan"
+  const [activeTab, setActiveTab] = useState("optionsscan"); // "stocks" | "hedgefunds" | "optionsscan"
   // 1–5 stocks in view
   const [activeSymbols, setActiveSymbols] = useState(DEFAULT_ACTIVE);
   // primary symbol for "Latest" + MAs
