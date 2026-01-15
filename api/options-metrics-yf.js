@@ -153,7 +153,8 @@ function parseTradeDate(d) {
     const day = Number(dPart);
     const year = Number(y.length === 2 ? 2000 + Number(y) : y);
     if ([month, day, year].every((n) => Number.isFinite(n))) {
-      return new Date(Date.UTC(year, month - 1, day));
+      // Use noon UTC to avoid shifting to prior day when rendered in ET.
+      return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
     }
   }
   return null;
