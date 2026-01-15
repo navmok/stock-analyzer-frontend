@@ -224,7 +224,19 @@ export async function loadYfMetrics({
     const dt = parseTradeDate(r.trade_dt);
     if (dt && (!latestTrade || dt > latestTrade)) latestTrade = dt;
   }
-  const resolvedUpdatedAt = (() => {
+  const resolvedUpdatedAt = await (async () => {
+    // Try to read pre-generated timestamp file (created at build time)
+    try {
+      const timestampPath = path.join(process.cwd(), "public", "data-timestamp.json");
+      const tsData = JSON.parse(await readFile(timestampPath, "utf8"));
+      const csvKey = csvName.replace(".csv", "");
+      if (tsData[csvKey]) {
+        const ts = new Date(tsData[csvKey]);
+        if (!Number.isNaN(ts.getTime())) return ts.toISOString();
+      }
+    } catch {
+      // Fall back to existing logic if timestamp file doesn't exist
+    }
     const times = [];
     if (updatedAt) times.push(new Date(updatedAt));
     if (latestTrade) times.push(latestTrade);
