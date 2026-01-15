@@ -138,6 +138,27 @@ function pickPositive(value, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+function parseTradeDate(d) {
+  if (!d) return null;
+  const s = String(d).trim();
+  // Try YYYY-MM-DD or ISO first.
+  const iso = Date.parse(s);
+  if (!Number.isNaN(iso)) return new Date(iso);
+
+  // Try M/D/YY (e.g., 1/15/26)
+  const parts = s.split("/");
+  if (parts.length === 3) {
+    const [m, dPart, y] = parts;
+    const month = Number(m);
+    const day = Number(dPart);
+    const year = Number(y.length === 2 ? 2000 + Number(y) : y);
+    if ([month, day, year].every((n) => Number.isFinite(n))) {
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+  }
+  return null;
+}
+
 export async function loadYfMetrics({
   moneynessFloor = DEFAULT_MONEYNESS,
   limit = DEFAULT_LIMIT,
@@ -196,12 +217,28 @@ export async function loadYfMetrics({
 
   const capped = limit > 0 ? filtered.slice(0, limit) : filtered;
 
+  // Choose the freshest timestamp between file mtime and latest trade_dt in data.
+  let latestTrade = null;
+  for (const r of filtered) {
+    const dt = parseTradeDate(r.trade_dt);
+    if (dt && (!latestTrade || dt > latestTrade)) latestTrade = dt;
+  }
+  const resolvedUpdatedAt = (() => {
+    const times = [];
+    if (updatedAt) times.push(new Date(updatedAt));
+    if (latestTrade) times.push(latestTrade);
+    const valid = times.filter((t) => t instanceof Date && !Number.isNaN(t.getTime()));
+    if (!valid.length) return new Date().toISOString();
+    const max = new Date(Math.max(...valid.map((t) => t.getTime())));
+    return max.toISOString();
+  })();
+
   return {
     rows: capped,
     meta: {
       refreshed: false,
       source: sourceUsed,
-      updatedAt: updatedAt || new Date().toISOString(),
+      updatedAt: resolvedUpdatedAt,
       dataset: datasetKey,
       total: filtered.length,
       moneynessFloor,
