@@ -94,7 +94,13 @@ export default function OptionsScanTable() {
     top: 0,
     background: "rgba(12, 18, 35, 0.98)",
     backdropFilter: "blur(6px)",
-    zIndex: 5,
+    zIndex: 10,
+  };
+
+  const tableContainerStyle = {
+    marginTop: 8,
+    maxHeight: "70vh",
+    overflow: "auto",
   };
 
   const SortHeader = ({ label, k, align = "left", minWidth }) => (
@@ -129,22 +135,22 @@ export default function OptionsScanTable() {
           : `Showing ${sortedRows.length} rows${meta?.total ? ` of ${meta.total} filtered` : ""}`}
       </div>
 
-      <div style={{ overflowX: "auto", marginTop: 8 }}>
-        <table width="100%" cellPadding="6" style={{ borderCollapse: "collapse" }}>
+      <div style={tableContainerStyle}>
+        <table width="100%" cellPadding="6" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
-            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-                <SortHeader label="Ticker" k="ticker" />
-                <SortHeader label="Trade Date" k="trade_dt" />
-                <SortHeader label="Expiry" k="expiry" />
-                <SortHeader label="Option" k="option_ticker" />
-                <SortHeader label="Spot" k="spot" align="right" />
-                <SortHeader label="Strike" k="strike" align="right" />
-                <SortHeader label="Moneyness" k="moneyness" align="right" />
-                <SortHeader label="Premium" k="premium" align="right" />
-                <SortHeader label="IV" k="iv" align="right" />
-                <SortHeader label="Delta" k="delta" align="right" />
-                <SortHeader label="ROI" k="roi" align="right" />
-                <SortHeader label="ROI Ann." k="roi_annualized" align="right" />
+            <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.15)", background: headerStyle.background }}>
+                <SortHeader label="Ticker" k="ticker" minWidth="90px" />
+                <SortHeader label="Trade Date" k="trade_dt" minWidth="110px" />
+                <SortHeader label="Expiry" k="expiry" minWidth="110px" />
+                <SortHeader label="Option" k="option_ticker" minWidth="160px" />
+                <SortHeader label="Spot" k="spot" align="right" minWidth="90px" />
+                <SortHeader label="Strike" k="strike" align="right" minWidth="90px" />
+                <SortHeader label="Moneyness" k="moneyness" align="right" minWidth="100px" />
+                <SortHeader label="Premium" k="premium" align="right" minWidth="100px" />
+                <SortHeader label="IV" k="iv" align="right" minWidth="70px" />
+                <SortHeader label="Delta" k="delta" align="right" minWidth="80px" />
+                <SortHeader label="ROI" k="roi" align="right" minWidth="80px" />
+                <SortHeader label="ROI Ann." k="roi_annualized" align="right" minWidth="100px" />
             </tr>
           </thead>
 
