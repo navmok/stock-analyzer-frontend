@@ -16,6 +16,20 @@ const fmtPct = (x, digits = 1) => {
 };
 
 const fmtDate = (d) => (d ? String(d).slice(0, 10) : "");
+const fmtEst = (iso) => {
+  if (!iso) return "";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "";
+  const opts = {
+    timeZone: "America/New_York",
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  };
+  return new Intl.DateTimeFormat("en-US", opts).format(dt) + " EST";
+};
 
 export default function OptionsScanTable() {
   const [rows, setRows] = useState([]);
@@ -157,6 +171,11 @@ export default function OptionsScanTable() {
           : `Showing ${sortedRows.length} rows${meta?.total ? ` of ${meta.total} filtered` : ""}${
               meta?.dataset ? ` · dataset ${meta.dataset}` : ""
             }`}
+        {!loading && meta?.updatedAt && (
+          <span style={{ marginLeft: 12, fontStyle: "italic" }}>
+            Last updated {fmtEst(meta.updatedAt)}
+          </span>
+        )}
       </div>
 
       <div style={tableContainerStyle}>

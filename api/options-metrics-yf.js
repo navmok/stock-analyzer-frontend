@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import path from "path";
 
 // In production we cannot spawn Python; use a pre-generated CSV under /public by default.
@@ -153,8 +153,15 @@ export async function loadYfMetrics({
 
   let csvText = null;
   let sourceUsed = bidCsvPath;
+  let updatedAt = null;
 
   try {
+    try {
+      const info = await stat(bidCsvPath);
+      updatedAt = info?.mtime ? info.mtime.toISOString() : null;
+    } catch {
+      // ignore stat errors; we'll fall back to now/fetch timestamp
+    }
     csvText = await readFile(bidCsvPath, "utf8");
   } catch (err) {
     // If the file is missing in the serverless bundle, fall back to an HTTP fetch
@@ -174,6 +181,7 @@ export async function loadYfMetrics({
     }
     csvText = await resp.text();
     sourceUsed = fallbackUrl;
+    updatedAt = new Date().toISOString();
   }
 
   const rows = parseCsv(csvText).map(normalizeRow);
@@ -193,6 +201,7 @@ export async function loadYfMetrics({
     meta: {
       refreshed: false,
       source: sourceUsed,
+      updatedAt: updatedAt || new Date().toISOString(),
       dataset: datasetKey,
       total: filtered.length,
       moneynessFloor,
