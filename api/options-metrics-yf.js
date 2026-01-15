@@ -2,9 +2,11 @@ import { readFile } from "fs/promises";
 import path from "path";
 
 // In production we cannot spawn Python; use a pre-generated CSV under /public by default.
+const DEFAULT_CSV_NAME = "scrape_bid_polygon_0.15.csv";
 const BID_CSV =
   process.env.SCRAPE_BID_OUTPUT ||
-  path.join(process.cwd(), "public", "scrape_bid_yf.csv");
+  path.join(process.cwd(), "public", DEFAULT_CSV_NAME);
+const BID_URL = process.env.SCRAPE_BID_URL || null;
 
 const DEFAULT_MONEYNESS = Number(process.env.MONEYNESS_THRESHOLD || 0.85);
 const DEFAULT_LIMIT = Number(process.env.METRICS_LIMIT || 500);
@@ -71,19 +73,54 @@ function normalizeRow(row) {
     row.roiAnnualized ??
     row["roi annualized"];
 
+  const underlying =
+    row.underlying ||
+    row.underlying_ticker ||
+    row.underlyingTicker ||
+    row.ticker_underlying ||
+    null;
+  const rawTicker = row.ticker?.trim() || null;
+  const optionTicker =
+    row.option_ticker ||
+    row.option_tic ||
+    row.contractSymbol ||
+    (rawTicker && rawTicker.startsWith("O:") ? rawTicker : null) ||
+    null;
+
+  let ticker = underlying?.trim?.() || null;
+  if (!ticker && rawTicker) {
+    // If the CSV includes both an underlying ticker and an option symbol, prefer the underlying.
+    // Otherwise fall back to the raw ticker value.
+    ticker = optionTicker && rawTicker === optionTicker ? null : rawTicker;
+  }
+
+  const spot =
+    numberOrNull(row.spot) ??
+    numberOrNull(row.spot_price) ??
+    numberOrNull(row.underlying_price) ??
+    numberOrNull(row.close);
+  const strike = numberOrNull(row.strike) ?? numberOrNull(row.strike_price);
+  const moneyness =
+    numberOrNull(row.moneyness) ??
+    (strike != null && spot != null && spot !== 0
+      ? Number(strike) / Number(spot)
+      : null);
+
   return {
     trade_dt: row.trade_dt || row.date || null,
-    ticker: row.ticker?.trim() || null,
-    spot: numberOrNull(row.spot),
-    strike: numberOrNull(row.strike),
-    moneyness: numberOrNull(row.moneyness),
-    premium: numberOrNull(row.premium),
-    iv: numberOrNull(row.iv),
+    ticker,
+    spot,
+    strike,
+    moneyness,
+    premium: numberOrNull(row.premium) ?? numberOrNull(row.bid_yf),
+    iv: numberOrNull(row.iv) ?? numberOrNull(row.implied_volatility),
     delta: numberOrNull(row.delta),
     roi: numberOrNull(row.roi),
     roi_annualized: numberOrNull(roiAnnRaw),
-    option_ticker: row.option_ticker || row.option_tic || row.contractSymbol || null,
-    expiry: row.expiry || row.exp || null,
+    option_ticker: optionTicker,
+    expiry: row.expiry || row.exp || row.expiration_date || null,
+    volume: numberOrNull(row.volume),
+    open_interest: numberOrNull(row.open_interest),
   };
 }
 
@@ -95,8 +132,33 @@ function pickPositive(value, fallback) {
 export async function loadYfMetrics({
   moneynessFloor = DEFAULT_MONEYNESS,
   limit = DEFAULT_LIMIT,
+  host = null,
 } = {}) {
-  const csvText = await readFile(BID_CSV, "utf8");
+  let csvText = null;
+  let sourceUsed = BID_CSV;
+
+  try {
+    csvText = await readFile(BID_CSV, "utf8");
+  } catch (err) {
+    // If the file is missing in the serverless bundle, fall back to an HTTP fetch
+    const fallbackUrl =
+      BID_URL ||
+      (host
+        ? `${host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https"}://${host}/${DEFAULT_CSV_NAME}`
+        : null);
+
+    if (!fallbackUrl) throw err;
+
+    const resp = await fetch(fallbackUrl);
+    if (!resp.ok) {
+      const e = new Error(`Failed to fetch CSV from ${fallbackUrl} (${resp.status})`);
+      e.cause = err;
+      throw e;
+    }
+    csvText = await resp.text();
+    sourceUsed = fallbackUrl;
+  }
+
   const rows = parseCsv(csvText).map(normalizeRow);
 
   const filtered = rows.filter(
@@ -115,7 +177,7 @@ export async function loadYfMetrics({
     rows: capped,
     meta: {
       refreshed: false,
-      source: BID_CSV,
+      source: sourceUsed,
       total: filtered.length,
       moneynessFloor,
     },
@@ -130,7 +192,8 @@ export default async function handler(req, res) {
       : DEFAULT_MONEYNESS;
     const limit = Math.min(pickPositive(req.query.limit, DEFAULT_LIMIT), 2000);
 
-    const data = await loadYfMetrics({ moneynessFloor, limit });
+    const host = req?.headers?.host || null;
+    const data = await loadYfMetrics({ moneynessFloor, limit, host });
     res.status(200).json(data);
   } catch (err) {
     res.status(500).json({

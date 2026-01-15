@@ -122,7 +122,7 @@ export default function OptionsScanTable() {
   return (
     <div style={{ padding: 12 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Options Metrics (Yahoo Finance)</h2>
+        <h2 style={{ margin: 0 }}>Options Metrics</h2>
         <button onClick={() => setRefreshTick((x) => x + 1)} style={{ padding: "6px 10px" }}>
           Refresh (force re-run)
         </button>
@@ -147,6 +147,8 @@ export default function OptionsScanTable() {
                 <SortHeader label="Strike" k="strike" align="right" minWidth="90px" />
                 <SortHeader label="Moneyness" k="moneyness" align="right" minWidth="100px" />
                 <SortHeader label="Premium" k="premium" align="right" minWidth="100px" />
+                <SortHeader label="Volume" k="volume" align="right" minWidth="90px" />
+                <SortHeader label="Open Interest" k="open_interest" align="right" minWidth="110px" />
                 <SortHeader label="IV" k="iv" align="right" minWidth="70px" />
                 <SortHeader label="Delta" k="delta" align="right" minWidth="80px" />
                 <SortHeader label="ROI" k="roi" align="right" minWidth="80px" />
@@ -165,6 +167,8 @@ export default function OptionsScanTable() {
                 <td align="right">{r.strike == null ? "" : `$${fmtNum(r.strike, 2)}`}</td>
                 <td align="right">{fmtNum(r.moneyness, 3)}</td>
                 <td align="right">{r.premium == null ? "" : `$${fmtNum(r.premium, 2)}`}</td>
+                <td align="right">{fmtNum(r.volume, 0)}</td>
+                <td align="right">{fmtNum(r.open_interest, 0)}</td>
                 <td align="right">{fmtPct(r.iv, 1)}</td>
                 <td align="right">{fmtNum(r.delta, 4)}</td>
                 <td align="right">{fmtPct(r.roi, 2)}</td>
@@ -174,7 +178,7 @@ export default function OptionsScanTable() {
 
             {!loading && sortedRows.length === 0 && (
               <tr>
-                <td colSpan="12" style={{ textAlign: "center" }}>
+                <td colSpan="14" style={{ textAlign: "center" }}>
                   No data
                 </td>
               </tr>
