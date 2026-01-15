@@ -1,6 +1,7 @@
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
+import { spawnSync } from "child_process";
 
 const PYTHON_BIN = process.env.PYTHON_BIN || "python";
 const SPOT_SCRIPT =
@@ -19,6 +20,7 @@ const DEFAULT_MONEYNESS = Number(process.env.MONEYNESS_THRESHOLD || 0.85);
 const DEFAULT_LIMIT = Number(process.env.METRICS_LIMIT || 500);
 
 let inflightRefresh = null;
+let resolvedPython = null;
 
 function numberOrNull(v) {
   if (v == null || v === "") return null;
@@ -99,9 +101,22 @@ function normalizeRow(row) {
 }
 
 async function runPython(scriptPath, label, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  if (!resolvedPython) {
+    resolvedPython = resolvePython();
+  }
+
+  if (!resolvedPython) {
+    throw new Error(
+      `No Python interpreter found. Set PYTHON_BIN to a valid executable (e.g. C:\\\\Python311\\\\python.exe). Tried: ${pythonCandidates()
+        .map((c) => c.label)
+        .join(", ")}`
+    );
+  }
+
+  const { cmd, argsPrefix, useShell } = resolvedPython;
   const cwd = path.dirname(scriptPath);
   return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON_BIN, [scriptPath], { cwd, shell: false });
+    const child = spawn(cmd, [...argsPrefix, scriptPath], { cwd, shell: useShell });
     let stdout = "";
     let stderr = "";
     const to = setTimeout(() => {
@@ -131,6 +146,34 @@ async function runPython(scriptPath, label, timeoutMs = DEFAULT_TIMEOUT_MS) {
       resolve({ stdout, stderr });
     });
   });
+}
+
+function pythonCandidates() {
+  const envBin = process.env.PYTHON_BIN?.trim();
+  const list = [];
+  if (envBin) list.push({ cmd: envBin, argsPrefix: [], label: envBin });
+  list.push({ cmd: "python", argsPrefix: [], label: "python" });
+  list.push({ cmd: "python3", argsPrefix: [], label: "python3" });
+  list.push({ cmd: "py", argsPrefix: [], label: "py" });
+  list.push({ cmd: "py", argsPrefix: ["-3"], label: "py -3" });
+  return list;
+}
+
+function resolvePython() {
+  for (const cand of pythonCandidates()) {
+    try {
+      const check = spawnSync(cand.cmd, [...cand.argsPrefix, "--version"], {
+        stdio: "ignore",
+        shell: cand.cmd === "py" && process.platform !== "win32" ? true : false,
+      });
+      if (check.status === 0) {
+        return { ...cand, useShell: cand.cmd === "py" && process.platform !== "win32" ? true : false };
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
 }
 
 async function isFresh(filePath, maxAgeMs) {
