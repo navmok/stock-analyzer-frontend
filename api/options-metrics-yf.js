@@ -148,10 +148,32 @@ async function runPython(scriptPath, label, timeoutMs = DEFAULT_TIMEOUT_MS) {
   });
 }
 
+function discoverFromPyLauncher() {
+  // Try to read the py launcher registry of interpreters (Windows).
+  try {
+    const out = spawnSync("py", ["-0p"], { encoding: "utf8", shell: true });
+    if (out.status !== 0 || !out.stdout) return null;
+    const lines = out.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return null;
+    // Prefer a 3.x path, ideally the starred default.
+    const preferred =
+      lines.find((l) => l.includes("*") && l.match(/3\./)) ||
+      lines.find((l) => l.match(/3\./)) ||
+      lines[0];
+    const parts = preferred.split(/\s+/);
+    const last = parts[parts.length - 1];
+    return last || null;
+  } catch {
+    return null;
+  }
+}
+
 function pythonCandidates() {
   const envBin = process.env.PYTHON_BIN?.trim();
+  const pyLauncherPath = discoverFromPyLauncher();
   const list = [];
   if (envBin) list.push({ cmd: envBin, argsPrefix: [], label: envBin });
+  if (pyLauncherPath) list.push({ cmd: pyLauncherPath, argsPrefix: [], label: pyLauncherPath });
   list.push({ cmd: "python", argsPrefix: [], label: "python" });
   list.push({ cmd: "python3", argsPrefix: [], label: "python3" });
   list.push({ cmd: "py", argsPrefix: [], label: "py" });
@@ -164,10 +186,10 @@ function resolvePython() {
     try {
       const check = spawnSync(cand.cmd, [...cand.argsPrefix, "--version"], {
         stdio: "ignore",
-        shell: cand.cmd === "py" && process.platform !== "win32" ? true : false,
+        shell: cand.cmd === "py" ? true : false,
       });
       if (check.status === 0) {
-        return { ...cand, useShell: cand.cmd === "py" && process.platform !== "win32" ? true : false };
+        return { ...cand, useShell: cand.cmd === "py" ? true : false };
       }
     } catch {
       // try next candidate
