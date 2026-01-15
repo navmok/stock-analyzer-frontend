@@ -19,8 +19,10 @@ const fmtDate = (d) => (d ? String(d).slice(0, 10) : "");
 
 export default function OptionsScanTable() {
   const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // client-side sorting (default: roi_annualized desc)
   const [sortKey, setSortKey] = useState("roi_annualized");
@@ -44,10 +46,14 @@ export default function OptionsScanTable() {
       setLoading(true);
       setErr("");
       try {
-        const r = await fetch("/api/options-scan-live?limit=100");
+        const force = refreshTick > 0 ? "&refresh=1" : "";
+        const r = await fetch(`/api/options-metrics-yf?limit=200&moneyness=0.85${force}`);
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
-        if (!cancelled) setRows(Array.isArray(j?.rows) ? j.rows : (Array.isArray(j) ? j : []));
+        if (!cancelled) {
+          setRows(Array.isArray(j?.rows) ? j.rows : (Array.isArray(j) ? j : []));
+          setMeta(j?.meta || null);
+        }
       } catch (e) {
         if (!cancelled) setErr(String(e?.message || e));
       } finally {
@@ -59,7 +65,7 @@ export default function OptionsScanTable() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshTick]);
 
   const sortedRows = useMemo(() => {
     const arr = [...rows];
@@ -97,14 +103,18 @@ export default function OptionsScanTable() {
   return (
     <div style={{ padding: 12 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Options Scan (Top 100)</h2>
-        <button onClick={() => window.location.reload()} style={{ padding: "6px 10px" }}>
-          Refresh
+        <h2 style={{ margin: 0 }}>Options Metrics (Yahoo Finance)</h2>
+        <button onClick={() => setRefreshTick((x) => x + 1)} style={{ padding: "6px 10px" }}>
+          Refresh (force re-run)
         </button>
       </div>
 
       {err && <div style={{ marginTop: 10, color: "salmon" }}>{err}</div>}
-      <div style={{ marginTop: 10, opacity: 0.8 }}>{loading ? "Loading..." : `Showing ${sortedRows.length} rows`}</div>
+      <div style={{ marginTop: 10, opacity: 0.8 }}>
+        {loading
+          ? "Loading..."
+          : `Showing ${sortedRows.length} rows${meta?.total ? ` of ${meta.total} filtered` : ""}`}
+      </div>
 
       <div style={{ overflowX: "auto", marginTop: 8 }}>
         <table width="100%" cellPadding="6" style={{ borderCollapse: "collapse" }}>
@@ -112,17 +122,14 @@ export default function OptionsScanTable() {
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
                 <SortHeader label="Ticker" k="ticker" />
                 <SortHeader label="Trade Date" k="trade_dt" />
+                <SortHeader label="Expiry" k="expiry" />
+                <SortHeader label="Option" k="option_ticker" />
                 <SortHeader label="Spot" k="spot" align="right" />
-                <SortHeader label="Exp" k="exp" />
-                <SortHeader label="DTE" k="dte" align="right" />
                 <SortHeader label="Strike" k="strike" align="right" />
-                <SortHeader label="Bid" k="bid" align="right" />
-                <SortHeader label="Ask" k="ask" align="right" />
+                <SortHeader label="Moneyness" k="moneyness" align="right" />
                 <SortHeader label="Premium" k="premium" align="right" />
                 <SortHeader label="IV" k="iv" align="right" />
                 <SortHeader label="Delta" k="delta" align="right" />
-                <SortHeader label="POP" k="pop" align="right" />
-                <SortHeader label="Moneyness" k="moneyness" align="right" />
                 <SortHeader label="ROI" k="roi" align="right" />
                 <SortHeader label="ROI Ann." k="roi_annualized" align="right" />
             </tr>
@@ -130,28 +137,25 @@ export default function OptionsScanTable() {
 
           <tbody>
             {sortedRows.map((r, i) => (
-              <tr key={`${r.ticker}-${r.exp}-${i}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <tr key={`${r.ticker}-${r.option_ticker || r.expiry || i}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <td>{r.ticker}</td>
                 <td>{fmtDate(r.trade_dt)}</td>
+                <td>{fmtDate(r.expiry)}</td>
+                <td style={{ fontFamily: "monospace" }}>{r.option_ticker}</td>
                 <td align="right">{r.spot == null ? "" : `$${fmtNum(r.spot, 2)}`}</td>
-                <td>{fmtDate(r.exp)}</td>
-                <td align="right">{r.dte}</td>
                 <td align="right">{r.strike == null ? "" : `$${fmtNum(r.strike, 2)}`}</td>
-                <td align="right">{r.bid == null ? "" : `$${fmtNum(r.bid, 2)}`}</td>
-                <td align="right">{r.ask == null ? "" : `$${fmtNum(r.ask, 2)}`}</td>
+                <td align="right">{fmtNum(r.moneyness, 3)}</td>
                 <td align="right">{r.premium == null ? "" : `$${fmtNum(r.premium, 2)}`}</td>
                 <td align="right">{fmtPct(r.iv, 1)}</td>
-                <td align="right">{fmtNum(r.delta, 3)}</td>
-                <td align="right">{fmtPct(r.pop, 1)}</td>
-                <td align="right">{fmtNum(r.moneyness, 2)}</td>
-                <td align="right">{fmtPct(r.roi, 1)}</td>
-                <td align="right">{fmtPct(r.roi_annualized, 1)}</td>
+                <td align="right">{fmtNum(r.delta, 4)}</td>
+                <td align="right">{fmtPct(r.roi, 2)}</td>
+                <td align="right">{fmtPct(r.roi_annualized, 2)}</td>
               </tr>
             ))}
 
             {!loading && sortedRows.length === 0 && (
               <tr>
-                <td colSpan="13" style={{ textAlign: "center" }}>
+                <td colSpan="12" style={{ textAlign: "center" }}>
                   No data
                 </td>
               </tr>
