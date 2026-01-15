@@ -3,13 +3,15 @@ import path from "path";
 
 // In production we cannot spawn Python; use a pre-generated CSV under /public by default.
 const DATASET_FILES = {
-  "0.15": "scrape_bid_polygon_0.15.csv",
-  "0.1": "scrape_bid_polygon_0.1.csv",
+  P85: "scrape_bid_polygon_0.15.csv",
+  P90: "scrape_bid_polygon_0.1.csv",
 };
-const DEFAULT_DATASET = "0.15";
+const DEFAULT_DATASET = "P85";
 const BID_URL = process.env.SCRAPE_BID_URL || null;
 
-const DEFAULT_MONEYNESS = Number(process.env.MONEYNESS_THRESHOLD || 0.85);
+const DEFAULT_MONEYNESS = Number.isFinite(Number(process.env.MONEYNESS_THRESHOLD))
+  ? Number(process.env.MONEYNESS_THRESHOLD)
+  : 0; // include all by default
 const DEFAULT_LIMIT = Number(process.env.METRICS_LIMIT || 500);
 
 function numberOrNull(v) {
@@ -142,7 +144,9 @@ export async function loadYfMetrics({
   host = null,
   dataset = DEFAULT_DATASET,
 } = {}) {
-  const datasetKey = DATASET_FILES[dataset] ? dataset : DEFAULT_DATASET;
+  const datasetKey = DATASET_FILES[String(dataset || "").toUpperCase()]
+    ? String(dataset || "").toUpperCase()
+    : DEFAULT_DATASET;
   const csvName = DATASET_FILES[datasetKey];
   const bidCsvPath =
     process.env.SCRAPE_BID_OUTPUT || path.join(process.cwd(), "public", csvName);
@@ -174,9 +178,7 @@ export async function loadYfMetrics({
 
   const rows = parseCsv(csvText).map(normalizeRow);
 
-  const filtered = rows.filter(
-    (r) => r.ticker && r.moneyness != null && r.moneyness > moneynessFloor
-  );
+  const filtered = rows.filter((r) => r.ticker && (r.moneyness == null || r.moneyness > moneynessFloor));
 
   filtered.sort((a, b) => {
     const aScore = a.roi_annualized ?? -Infinity;

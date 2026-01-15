@@ -22,8 +22,7 @@ export default function OptionsScanTable() {
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [refreshTick, setRefreshTick] = useState(0);
-  const [dataset, setDataset] = useState("0.15"); // "0.15" | "0.1"
+  const [dataset, setDataset] = useState("P85"); // "P85" | "P90"
 
   // client-side sorting (default: roi_annualized desc)
   const [sortKey, setSortKey] = useState("roi_annualized");
@@ -47,9 +46,8 @@ export default function OptionsScanTable() {
       setLoading(true);
       setErr("");
       try {
-        const force = refreshTick > 0 ? "&refresh=1" : "";
         const r = await fetch(
-          `/api/options-metrics-yf?limit=200&moneyness=0.85&dataset=${encodeURIComponent(dataset)}${force}`
+          `/api/options-metrics-yf?limit=200&moneyness=0&dataset=${encodeURIComponent(dataset)}`
         );
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
@@ -68,7 +66,7 @@ export default function OptionsScanTable() {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick, dataset]);
+  }, [dataset]);
 
   const sortedRows = useMemo(() => {
     const arr = [...rows];
@@ -129,8 +127,8 @@ export default function OptionsScanTable() {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 6 }}>
             {[
-              { label: "0.15 CSV", value: "0.15" },
-              { label: "0.10 CSV", value: "0.1" },
+              { label: "P85", value: "P85" },
+              { label: "P90", value: "P90" },
             ].map((opt) => (
               <button
                 key={opt.value}
@@ -149,9 +147,6 @@ export default function OptionsScanTable() {
               </button>
             ))}
           </div>
-          <button onClick={() => setRefreshTick((x) => x + 1)} style={{ padding: "6px 10px" }}>
-            Refresh (force re-run)
-          </button>
         </div>
       </div>
 
